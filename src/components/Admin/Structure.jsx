@@ -1,17 +1,95 @@
-    import React, { useState } from 'react';
-    import { Box, Typography, Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, IconButton, Dialog, DialogTitle, DialogContent, DialogActions, TextField } from '@mui/material';
-    import { Edit, Delete, Menu as MenuIcon, Close as CloseIcon, PersonAdd } from '@mui/icons-material';
-    import Drawer from '@mui/material/Drawer';
-    import Calendar from 'react-calendar';
-    import 'react-calendar/dist/Calendar.css';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { Box, Typography, Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, IconButton, Dialog, DialogTitle, DialogContent, DialogActions, TextField, CircularProgress, Avatar, Chip, Card, CardContent, Grid, Fade, Slide, Zoom } from '@mui/material';
+import { Edit, Delete, Menu as MenuIcon, Close as CloseIcon, PersonAdd, Refresh, Search, FilterList, Visibility, MoreVert, Assignment } from '@mui/icons-material';
+import Drawer from '@mui/material/Drawer';
+import { styled, keyframes } from '@mui/material/styles';
+import Asignation from './Asignation';
 
-    const initialSessions = [
-    { id: 1, nombre: 'Juan Pérez', encargado: 'Mtro. Luis García', inicioServicio: '2025-01-15', finServicio: '', horasAcumuladas: 120 },
-    { id: 2, nombre: 'Ana López', encargado: 'Mtra. Sofía Ruiz', inicioServicio: '2025-02-01', finServicio: '', horasAcumuladas: 80 },
-    ];
+// Animaciones personalizadas
+const pulse = keyframes`
+  0% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+  100% { transform: scale(1); }
+`;
 
-    export default function Structure() {
-    const [sessions, setSessions] = useState(initialSessions);
+const glow = keyframes`
+  0% { box-shadow: 0 0 5px rgba(25, 118, 210, 0.3); }
+  50% { box-shadow: 0 0 20px rgba(25, 118, 210, 0.8); }
+  100% { box-shadow: 0 0 5px rgba(25, 118, 210, 0.3); }
+`;
+
+const slideIn = keyframes`
+  from { transform: translateX(-100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+`;
+
+// Componentes estilizados
+const StyledCard = styled(Card)(({ theme }) => ({
+  background: 'linear-gradient(145deg, #ffffff 0%, #f5f7fa 100%)',
+  borderRadius: '16px',
+  boxShadow: '0 8px 32px rgba(0, 0, 0, 0.12)',
+  border: '1px solid rgba(255, 255, 255, 0.2)',
+  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+  '&:hover': {
+    transform: 'translateY(-4px)',
+    boxShadow: '0 12px 40px rgba(0, 0, 0, 0.15)',
+  },
+}));
+
+const GlowButton = styled(Button)(({ theme }) => ({
+  borderRadius: '12px',
+  padding: '12px 24px',
+  background: 'linear-gradient(45deg, #1976d2 30%, #42a5f5 90%)',
+  transition: 'all 0.3s ease',
+  '&:hover': {
+    animation: `${glow} 2s infinite`,
+    transform: 'translateY(-2px)',
+  },
+}));
+
+const AnimatedTableRow = styled(TableRow)(({ theme }) => ({
+  transition: 'all 0.3s ease',
+  '&:hover': {
+    backgroundColor: 'rgba(25, 118, 210, 0.04)',
+    transform: 'scale(1.01)',
+  },
+}));
+
+const HeaderBox = styled(Box)(({ theme }) => ({
+  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+  borderRadius: '20px',
+  padding: '20px',
+  marginBottom: '24px',
+  color: 'white',
+  position: 'relative',
+  overflow: 'hidden',
+  '&::before': {
+    content: '""',
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    background: 'linear-gradient(45deg, transparent 30%, rgba(255,255,255,0.1) 50%, transparent 70%)',
+    animation: `${slideIn} 3s infinite`,
+  },
+}));
+
+const StyledAvatar = styled(Avatar)(({ theme }) => ({
+  width: 56,
+  height: 56,
+  border: '3px solid #fff',
+  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+  transition: 'all 0.3s ease',
+  '&:hover': {
+    animation: `${pulse} 1s infinite`,
+  },
+}));
+
+export default function Structure() {
+    const [users, setUsers] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
     const [dialogOpen, setDialogOpen] = useState(false);
     const [editSession, setEditSession] = useState(null);
     const [form, setForm] = useState({ nombre: '', encargado: '', inicioServicio: '', finServicio: '', horasAcumuladas: '' });
@@ -20,635 +98,795 @@
     const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
     const [fechaSeleccionada, setFechaSeleccionada] = useState(null);
     const [reporteDrawerOpen, setReporteDrawerOpen] = useState(false);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [refreshing, setRefreshing] = useState(false);
+    const [asignationOpen, setAsignationOpen] = useState(false);
 
-    const handleOpenDialog = (session = null) => {
+    // Función optimizada para obtener usuarios con cache
+    const fetchUsers = useCallback(async (force = false) => {
+        if (users.length > 0 && !force) return; // Evita recargas innecesarias
+        
+        try {
+            setRefreshing(true);
+            const response = await fetch('http://localhost:3001/api/users', {
+                headers: {
+                    'Cache-Control': force ? 'no-cache' : 'max-age=300', // Cache por 5 minutos
+                    'Pragma': force ? 'no-cache' : 'cache'
+                }
+            });
+            
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => null);
+                throw new Error(errorData?.message || 'Error al obtener los usuarios');
+            }
+            
+            const data = await response.json();
+            
+            if (!data.users || !Array.isArray(data.users)) {
+                throw new Error('Formato de respuesta inválido');
+            }
+            
+            setUsers(data.users);
+            setError(null);
+        } catch (err) {
+            console.error('Error detallado:', err);
+            setError(err.message);
+        } finally {
+            setLoading(false);
+            setRefreshing(false);
+        }
+    }, [users.length]);
+
+    // Cargar usuarios solo una vez al montar
+    useEffect(() => {
+        fetchUsers();
+    }, [fetchUsers]);
+
+    // Función de búsqueda optimizada
+    const filteredUsers = useMemo(() => {
+        if (!searchTerm) return users;
+        return users.filter(user => 
+            user.nombreCompleto?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            user.numeroControl?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            user.carrera?.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+    }, [users, searchTerm]);
+
+    // Memoizar los detalles del estudiante
+    const getStudentDetails = useMemo(() => (session) => ({
+        ...session,
+        correo: session.nombre?.toLowerCase().replace(/ /g, '.') + '@tesjo.edu.mx',
+        carrera: session.carrera || 'No especificada',
+        registros: session.registros || []
+    }), []);
+
+    const handleOpenDialog = useCallback((session = null) => {
         setEditSession(session);
         setForm(session || { nombre: '', encargado: '', inicioServicio: '', finServicio: '', horasAcumuladas: '' });
         setDialogOpen(true);
         setMobileDrawerOpen(false);
-    };
+    }, []);
     
-    const handleCloseDialog = () => {
+    const handleCloseDialog = useCallback(() => {
         setDialogOpen(false);
         setEditSession(null);
         setForm({ nombre: '', encargado: '', inicioServicio: '', finServicio: '', horasAcumuladas: '' });
-    };
+    }, []);
     
-    const handleChange = e => {
+    const handleChange = useCallback((e) => {
         setForm({ ...form, [e.target.name]: e.target.value });
-    };
+    }, [form]);
     
-    const handleSave = () => {
+    const handleSave = useCallback(() => {
         if (editSession) {
-        setSessions(sessions.map(s => s.id === editSession.id ? { ...editSession, ...form } : s));
+            setUsers(users.map(s => s.id === editSession.id ? { ...editSession, ...form } : s));
         } else {
-        setSessions([...sessions, { ...form, id: Date.now() }]);
+            setUsers([...users, { ...form, id: Date.now() }]);
         }
         handleCloseDialog();
-    };
+    }, [editSession, form, users, handleCloseDialog]);
     
-    const handleDelete = id => {
-        setSessions(sessions.filter(s => s.id !== id));
-    };
+    const handleDelete = useCallback((id) => {
+        setUsers(users.filter(s => s.id !== id));
+    }, [users]);
 
-    const getStudentDetails = (session) => ({
-        ...session,
-        correo: session.nombre.toLowerCase().replace(/ /g, '.') + '@tesjo.edu.mx',
-        carrera: 'Ingeniería en Sistemas Computacionales',
-        semestre: 8,
-        numeroControl: '20201234',
-        registros: [
-        { fecha: '2025-01-15', horaEntrada: '08:00', horaSalida: '12:00', actividades: 'Desarrollo de módulo de administración' }
-        ]
-    });
-
-    const handleSelectStudent = (session) => {
-        setSelectedStudent(getStudentDetails(session));
+    const handleSelectStudent = useCallback((user) => {
+        setSelectedStudent(getStudentDetails(user));
         setDrawerOpen(true);
-    };
+    }, [getStudentDetails]);
     
-    const handleCloseDrawer = () => {
+    const handleCloseDrawer = useCallback(() => {
         setDrawerOpen(false);
         setSelectedStudent(null);
-    };
+    }, []);
 
-    const registrosHistorial = selectedStudent?.registros?.map(r => ({
-        ...r,
-        fechaObj: new Date(r.fecha),
-        horasRealizadas: ((parseInt(r.horaSalida) - parseInt(r.horaEntrada)) || 4).toFixed(2),
-        descripcion: r.actividades,
-        evidencias: []
-    })) || [];
-
-    const handleFechaSeleccionada = (fecha) => {
-        setFechaSeleccionada(fecha);
-    };
-    
-    const formatearFecha = (fecha) => {
-        if (!fecha) return '';
-        const dias = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
-        const meses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
-        return `${dias[fecha.getDay()]}, ${fecha.getDate()} de ${meses[fecha.getMonth()]} de ${fecha.getFullYear()}`;
-    };
-
-    const handleDarDeBajaDesdeDashboard = (alumnoId) => {
-        setSessions(sessions.map(s => s.id === alumnoId ? { ...s, finServicio: new Date().toISOString().slice(0, 10) } : s));
-        setDrawerOpen(false);
-        setSelectedStudent(null);
-    };
-
-    const handleOpenReporteHoras = () => {
+    const handleOpenReporteHoras = useCallback(() => {
         setReporteDrawerOpen(true);
         setMobileDrawerOpen(false);
-    };
+    }, []);
 
-    const handleCloseReporteHoras = () => {
+    const handleCloseReporteHoras = useCallback(() => {
         setReporteDrawerOpen(false);
-    };
+    }, []);
 
-    // Función para obtener el lunes de la semana actual
-    const obtenerLunesSemana = (fecha) => {
-        const d = new Date(fecha);
-        const day = d.getDay();
-        const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-        return new Date(d.setDate(diff));
-    };
+    const handleRefresh = useCallback(() => {
+        fetchUsers(true);
+    }, [fetchUsers]);
 
-    // Función para generar datos de ejemplo para el reporte semanal
-    const generarDatosSemana = () => {
-        const lunesActual = obtenerLunesSemana(new Date());
-        const semanas = [];
-        
-        for (let i = 0; i < 4; i++) {
-        const lunesSemana = new Date(lunesActual);
-        lunesSemana.setDate(lunesActual.getDate() - (i * 7));
-        
-        const domingoSemana = new Date(lunesSemana);
-        domingoSemana.setDate(lunesSemana.getDate() + 6);
-        
-        const alumnosReporte = sessions.map(session => ({
-            nombre: session.nombre,
-            horasPorDia: {
-            lunes: Math.floor(Math.random() * 8) + 1,
-            martes: Math.floor(Math.random() * 8) + 1,
-            miercoles: Math.floor(Math.random() * 8) + 1,
-            jueves: Math.floor(Math.random() * 8) + 1,
-            viernes: Math.floor(Math.random() * 8) + 1,
-            sabado: 0,
-            domingo: 0
-            }
-        }));
-        
-        alumnosReporte.forEach(alumno => {
-            alumno.totalSemanal = Object.values(alumno.horasPorDia).reduce((sum, horas) => sum + horas, 0);
-        });
-        
-        semanas.push({
-            semana: `${lunesSemana.toLocaleDateString('es-MX')} - ${domingoSemana.toLocaleDateString('es-MX')}`,
-            fechaInicio: lunesSemana,
-            alumnos: alumnosReporte,
-            totalGeneral: alumnosReporte.reduce((sum, alumno) => sum + alumno.totalSemanal, 0)
-        });
-        }
-        
-        return semanas;
-    };
+    const handleOpenAsignation = useCallback(() => {
+        setAsignationOpen(true);
+        setMobileDrawerOpen(false);
+    }, []);
 
-    const reporteSemanal = generarDatosSemana();
+    const handleCloseAsignation = useCallback(() => {
+        setAsignationOpen(false);
+    }, []);
 
     return (
-        <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
-        {/* Drawer de navegación (menú hamburguesa) */}
-        <Drawer
-            anchor="left"
-            open={mobileDrawerOpen}
-            onClose={() => setMobileDrawerOpen(false)}
-        >
-            <Box sx={{ width: 300, padding: 3, display: 'flex', flexDirection: 'column', height: '100%' }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-                <Typography variant="h6" color="primary">Menú de Administración</Typography>
-                <IconButton onClick={() => setMobileDrawerOpen(false)}>
-                <CloseIcon />
-                </IconButton>
-            </Box>
-            
-            {/* Gestión de Alumnos */}
-            <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1, mt: 1, fontWeight: 'bold' }}>
-                GESTIÓN DE ALUMNOS
-            </Typography>
-            
-            <Button 
-                startIcon={<PersonAdd />}
-                fullWidth 
-                variant="contained"
-                sx={{ justifyContent: 'flex-start', mb: 1.5, py: 1.2 }}
-                onClick={() => handleOpenDialog()}
-            >
-                Dar de Alta Alumno
-            </Button>
-
-            <Button 
-                startIcon={<Delete />}
-                fullWidth 
-                variant="outlined"
-                color="error"
-                sx={{ justifyContent: 'flex-start', mb: 1.5, py: 1.2 }}
-                onClick={() => setMobileDrawerOpen(false)}
-            >
-                Dar de Baja Alumno
-            </Button>
-
-            <Button 
-                startIcon={<Edit />}
-                fullWidth 
-                variant="outlined"
-                sx={{ justifyContent: 'flex-start', mb: 2, py: 1.2 }}
-                onClick={() => setMobileDrawerOpen(false)}
-            >
-                Nueva Contraseña de Alumno
-            </Button>
-
-            {/* Reportes y Administración */}
-            <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1, mt: 2, fontWeight: 'bold' }}>
-                REPORTES Y ADMINISTRACIÓN
-            </Typography>
-
-            <Button 
-                fullWidth 
-                variant="outlined"
-                sx={{ justifyContent: 'flex-start', mb: 1.5, py: 1.2 }}
-                onClick={handleOpenReporteHoras}
-            >
-                📊 Reportes de Horas
-            </Button>
-
-            <Button 
-                fullWidth 
-                variant="outlined"
-                sx={{ justifyContent: 'flex-start', mb: 1.5, py: 1.2 }}
-                onClick={() => setMobileDrawerOpen(false)}
-            >
-                📈 Estadísticas
-            </Button>
-
-            <Button 
-                fullWidth 
-                variant="outlined"
-                sx={{ justifyContent: 'flex-start', mb: 1.5, py: 1.2 }}
-                onClick={() => setMobileDrawerOpen(false)}
-            >
-                📋 Lista de Asistencia
-            </Button>
-
-            <Button 
-                fullWidth 
-                variant="outlined"
-                sx={{ justifyContent: 'flex-start', mb: 2, py: 1.2 }}
-                onClick={() => setMobileDrawerOpen(false)}
-            >
-                🏢 Gestión de Encargados
-            </Button>
-
-            {/* Configuración */}
-            <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1, mt: 1, fontWeight: 'bold' }}>
-                CONFIGURACIÓN
-            </Typography>
-
-            <Button 
-                fullWidth 
-                variant="outlined"
-                sx={{ justifyContent: 'flex-start', mb: 1.5, py: 1.2 }}
-                onClick={() => setMobileDrawerOpen(false)}
-            >
-                ⚙️ Configuración General
-            </Button>
-
-            <Button 
-                fullWidth 
-                variant="outlined"
-                sx={{ justifyContent: 'flex-start', mb: 1.5, py: 1.2 }}
-                onClick={() => setMobileDrawerOpen(false)}
-            >
-                📤 Exportar Datos
-            </Button>
-
-            <Button 
-                fullWidth 
-                variant="outlined"
-                sx={{ justifyContent: 'flex-start', mb: 2, py: 1.2 }}
-                onClick={() => setMobileDrawerOpen(false)}
-            >
-                🔔 Notificaciones
-            </Button>
-            
-            <Box sx={{ flexGrow: 1 }} />
-            
-            <Button 
-                fullWidth 
-                variant="contained"
-                sx={{ justifyContent: 'flex-start', mt: 'auto', py: 1.5 }}
-                color="error"
-                onClick={() => setMobileDrawerOpen(false)}
-            >
-                🚪 Cerrar Sesión
-            </Button>
-            </Box>
-        </Drawer>
-
-        {/* Contenido principal */}
-        <Box sx={{ flex: 1, padding: 3, pt: 8 }}>
-            {/* Título con botón hamburguesa integrado */}
+        <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', bgcolor: '#f8fafc' }}>
+            {/* Contenido principal */}
             <Box sx={{ 
-            display: 'flex', 
-            alignItems: 'center', 
-            mb: 3,
-            gap: 1,
-            mt: 4
+                flex: 1, 
+                padding: 3, 
+                pt: 10, // Aumentado el padding top para dar más espacio después del navbar
+                mx: 'auto', // Centrar el contenido
+                width: '100%',
+                maxWidth: '1400px', // Limitar el ancho máximo para mejor legibilidad
             }}>
-            <IconButton
-                color="primary"
-                aria-label="abrir menú"
-                onClick={() => setMobileDrawerOpen(true)}
-                sx={{ 
-                mr: 1,
-                backgroundColor: 'rgba(25, 118, 210, 0.04)',
-                '&:hover': {
-                    backgroundColor: 'rgba(25, 118, 210, 0.08)',
-                }
+                {/* Header futurista */}
+                <Fade in={true} timeout={1000}>
+                    <HeaderBox sx={{
+                        background: 'linear-gradient(135deg, #1976d2 0%, #1565c0 100%)', // Cambiado a tonos de azul más profesionales
+                        boxShadow: '0 4px 20px rgba(0, 0, 0, 0.1)',
+                        borderRadius: '16px',
+                        mb: 4, // Aumentado el margen inferior
+                    }}>
+                        <Box sx={{ 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            gap: 2, 
+                            mb: 2,
+                            px: 2, // Añadido padding horizontal
+                        }}>
+                            <IconButton
+                                color="inherit"
+                                onClick={() => setMobileDrawerOpen(true)}
+                                sx={{ 
+                                    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                                    backdropFilter: 'blur(10px)',
+                                    '&:hover': {
+                                        backgroundColor: 'rgba(255, 255, 255, 0.3)',
+                                        transform: 'scale(1.1)',
+                                    },
+                                    transition: 'all 0.3s ease',
+                                }}
+                            >
+                                <MenuIcon />
+                            </IconButton>
+                            <Typography 
+                                variant="h4" 
+                                component="h1" 
+                                sx={{ 
+                                    fontWeight: 600,
+                                    flexGrow: 1,
+                                    letterSpacing: '0.5px',
+                                    textShadow: '2px 2px 4px rgba(0,0,0,0.2)'
+                                }}
+                            >
+                                Panel de Administración
+                            </Typography>
+                            <IconButton
+                                color="inherit"
+                                onClick={handleRefresh}
+                                disabled={refreshing}
+                                sx={{ 
+                                    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                                    backdropFilter: 'blur(10px)',
+                                    '&:hover': {
+                                        backgroundColor: 'rgba(255, 255, 255, 0.3)',
+                                        transform: 'scale(1.1)',
+                                    },
+                                }}
+                            >
+                                <Refresh sx={{ 
+                                    animation: refreshing ? 'spin 1s linear infinite' : 'none',
+                                    '@keyframes spin': {
+                                        '0%': { transform: 'rotate(0deg)' },
+                                        '100%': { transform: 'rotate(360deg)' },
+                                    },
+                                }} />
+                            </IconButton>
+                        </Box>
+                        <Typography 
+                            variant="subtitle1" 
+                            sx={{ 
+                                opacity: 0.9, 
+                                fontWeight: 300,
+                                px: 2,
+                                pb: 2
+                            }}
+                        >
+                            Gestiona docentes, consulta registros y administra el sistema
+                        </Typography>
+                    </HeaderBox>
+                </Fade>
+
+                {/* Controles de búsqueda */}
+                <Slide direction="up" in={true} timeout={800}>
+                    <StyledCard sx={{ 
+                        mb: 4,
+                        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.05)',
+                        borderRadius: '12px',
+                    }}>
+                        <CardContent sx={{ py: 3 }}>
+                            <Box sx={{ 
+                                display: 'flex', 
+                                gap: 2, 
+                                alignItems: 'center', 
+                                flexWrap: 'wrap',
+                                px: 2
+                            }}>
+                                <TextField
+                                    placeholder="Buscar por nombre, número de control, email o carrera..."
+                                    variant="outlined"
+                                    size="medium"
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    sx={{ 
+                                        flexGrow: 1, 
+                                        minWidth: 300,
+                                        '& .MuiOutlinedInput-root': {
+                                            borderRadius: '12px',
+                                            backgroundColor: 'white',
+                                            '&:hover': {
+                                                '& .MuiOutlinedInput-notchedOutline': {
+                                                    borderColor: '#1976d2',
+                                                },
+                                            },
+                                        },
+                                    }}
+                                    InputProps={{
+                                        startAdornment: <Search sx={{ color: 'text.secondary', mr: 1 }} />,
+                                    }}
+                                />
+                                <Chip 
+                                    label={`${filteredUsers.length} usuarios`} 
+                                    color="primary" 
+                                    sx={{ 
+                                        fontWeight: 'bold',
+                                        px: 2,
+                                        height: '40px',
+                                        borderRadius: '20px',
+                                        backgroundColor: '#1976d2',
+                                    }}
+                                />
+                            </Box>
+                        </CardContent>
+                    </StyledCard>
+                </Slide>
+
+                {/* Tabla de usuarios */}
+                <Zoom in={true} timeout={1000}>
+                    <StyledCard sx={{
+                        borderRadius: '16px',
+                        overflow: 'hidden',
+                        boxShadow: '0 4px 20px rgba(0, 0, 0, 0.08)',
+                    }}>
+                        <TableContainer>
+                            <Table>
+                                <TableHead>
+                                    <TableRow sx={{ 
+                                        backgroundColor: '#f5f7fa',
+                                        '& th': { 
+                                            fontWeight: 600,
+                                            color: '#1976d2',
+                                            fontSize: '0.95rem',
+                                            py: 2
+                                        }
+                                    }}>
+                                        <TableCell sx={{ fontWeight: 'bold', color: 'primary.main' }}>Foto</TableCell>
+                                        <TableCell sx={{ fontWeight: 'bold', color: 'primary.main' }}>Número de Control</TableCell>
+                                        <TableCell sx={{ fontWeight: 'bold', color: 'primary.main' }}>Nombre Completo</TableCell>
+                                        <TableCell sx={{ fontWeight: 'bold', color: 'primary.main' }}>Carrera</TableCell>
+                                        <TableCell sx={{ fontWeight: 'bold', color: 'primary.main' }}>Email</TableCell>
+                                        <TableCell sx={{ fontWeight: 'bold', color: 'primary.main' }}>Acciones</TableCell>
+                                    </TableRow>
+                                </TableHead>
+                                <TableBody>
+                                    {loading ? (
+                                        <TableRow>
+                                            <TableCell colSpan={6} align="center" sx={{ py: 8 }}>
+                                                <CircularProgress size={60} thickness={4} />
+                                                <Typography sx={{ mt: 2, fontSize: '1.1rem' }}>
+                                                    Cargando usuarios...
+                                                </Typography>
+                                            </TableCell>
+                                        </TableRow>
+                                    ) : error ? (
+                                        <TableRow>
+                                            <TableCell colSpan={6} align="center" sx={{ py: 8 }}>
+                                                <Typography color="error" variant="h6">
+                                                    ⚠️ Error: {error}
+                                                </Typography>
+                                                <Button 
+                                                    onClick={handleRefresh} 
+                                                    sx={{ mt: 2 }}
+                                                    variant="outlined"
+                                                >
+                                                    Reintentar
+                                                </Button>
+                                            </TableCell>
+                                        </TableRow>
+                                    ) : filteredUsers.length === 0 ? (
+                                        <TableRow>
+                                            <TableCell colSpan={6} align="center" sx={{ py: 8 }}>
+                                                <Typography variant="h6" color="text.secondary">
+                                                    {searchTerm ? '🔍 No se encontraron usuarios' : '👥 No hay usuarios registrados'}
+                                                </Typography>
+                                            </TableCell>
+                                        </TableRow>
+                                    ) : (
+                                        filteredUsers.map((user, index) => (
+                                            <Fade in={true} timeout={300 + index * 100} key={user._id}>
+                                                <AnimatedTableRow>
+                                                    <TableCell>
+                                                        <StyledAvatar
+                                                            src={user.fotoPerfil 
+                                                                ? `http://localhost:3001/uploads/perfiles/${user.fotoPerfil}?t=${Date.now()}`
+                                                                : 'http://localhost:3001/uploads/perfiles/2138822222222_1749571359362.png'
+                                                            }
+                                                            alt={`Foto de perfil de ${user.nombreCompleto}`}
+                                                            onError={(e) => {
+                                                                if (!e.target.src.includes('2138822222222_1749571359362.png')) {
+                                                                    e.target.onerror = null;
+                                                                    e.target.src = `http://localhost:3001/uploads/perfiles/2138822222222_1749571359362.png?t=${Date.now()}`;
+                                                                }
+                                                            }}
+                                                        />
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <Typography variant="body1" sx={{ fontWeight: 'bold', color: 'primary.main' }}>
+                                                            {user.numeroControl}
+                                                        </Typography>
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <Typography variant="body1" sx={{ fontWeight: 500 }}>
+                                                            {`${user.nombre} ${user.apellidoPaterno} ${user.apellidoMaterno}`}
+                                                        </Typography>
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <Chip 
+                                                            label={typeof user.carrera === 'object' ? user.carrera.nombre : user.carrera} 
+                                                            size="small" 
+                                                            color="secondary"
+                                                            sx={{ fontWeight: 'bold' }}
+                                                        />
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <Typography variant="body2" color="text.secondary">
+                                                            {user.email}
+                                                        </Typography>
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <Box sx={{ display: 'flex', gap: 1 }}>
+                                                            <IconButton 
+                                                                onClick={() => handleSelectStudent(user)}
+                                                                sx={{ 
+                                                                    color: 'primary.main',
+                                                                    '&:hover': { 
+                                                                        backgroundColor: 'rgba(25, 118, 210, 0.1)',
+                                                                        transform: 'scale(1.1)',
+                                                                    },
+                                                                    transition: 'all 0.2s ease',
+                                                                }}
+                                                            >
+                                                                <Visibility />
+                                                            </IconButton>
+                                                            <IconButton 
+                                                                onClick={() => handleOpenDialog(user)}
+                                                                sx={{ 
+                                                                    color: 'warning.main',
+                                                                    '&:hover': { 
+                                                                        backgroundColor: 'rgba(237, 108, 2, 0.1)',
+                                                                        transform: 'scale(1.1)',
+                                                                    },
+                                                                    transition: 'all 0.2s ease',
+                                                                }}
+                                                            >
+                                                                <Edit />
+                                                            </IconButton>
+                                                            <IconButton 
+                                                                onClick={() => handleDelete(user._id)} 
+                                                                sx={{ 
+                                                                    color: 'error.main',
+                                                                    '&:hover': { 
+                                                                        backgroundColor: 'rgba(211, 47, 47, 0.1)',
+                                                                        transform: 'scale(1.1)',
+                                                                    },
+                                                                    transition: 'all 0.2s ease',
+                                                                }}
+                                                            >
+                                                                <Delete />
+                                                            </IconButton>
+                                                        </Box>
+                                                    </TableCell>
+                                                </AnimatedTableRow>
+                                            </Fade>
+                                        ))
+                                    )}
+                                </TableBody>
+                            </Table>
+                        </TableContainer>
+                    </StyledCard>
+                </Zoom>
+            </Box>
+
+            {/* Drawer de navegación (menú hamburguesa) - SIN CAMBIOS */}
+            <Drawer
+                anchor="left"
+                open={mobileDrawerOpen}
+                onClose={() => setMobileDrawerOpen(false)}
+                sx={{
+                    '& .MuiDrawer-paper': {
+                        background: 'linear-gradient(145deg, #1a1a2e 0%, #16213e 100%)',
+                        color: 'white',
+                    },
                 }}
             >
-                <MenuIcon />
-            </IconButton>
-            <Typography variant="h4" component="h1">
-                Panel de Administración
-            </Typography>
-            </Box>
-
-            <Typography variant="body1" sx={{ mb: 4, color: 'text.secondary' }}>
-            Bienvenido al panel de administración. Desde aquí puedes gestionar los alumnos en servicio social, 
-            consultar sus registros y realizar acciones administrativas.
-            </Typography>
-
-            <TableContainer component={Paper} sx={{ boxShadow: 2 }}>
-            <Table>
-                <TableHead>
-                <TableRow sx={{ backgroundColor: 'grey.50' }}>
-                    <TableCell sx={{ fontWeight: 'bold' }}>Nombre del alumno</TableCell>
-                    <TableCell sx={{ fontWeight: 'bold' }}>Encargado</TableCell>
-                    <TableCell sx={{ fontWeight: 'bold' }}>Inicio de Servicio</TableCell>
-                    <TableCell sx={{ fontWeight: 'bold' }}>Fin de Servicio</TableCell>
-                    <TableCell sx={{ fontWeight: 'bold' }}>Horas acumuladas</TableCell>
-                    <TableCell align="right" sx={{ fontWeight: 'bold' }}>Acciones</TableCell>
-                </TableRow>
-                </TableHead>
-                <TableBody>
-                {sessions.map(session => (
-                    <TableRow key={session.id} sx={{ '&:hover': { backgroundColor: 'grey.50' } }}>
-                    <TableCell>{session.nombre}</TableCell>
-                    <TableCell>{session.encargado}</TableCell>
-                    <TableCell>{session.inicioServicio}</TableCell>
-                    <TableCell>{session.finServicio || '-'}</TableCell>
-                    <TableCell>
-                        <Box sx={{ 
-                        display: 'inline-block', 
-                        px: 1, 
-                        py: 0.5, 
-                        borderRadius: 1, 
-                        backgroundColor: 'primary.light', 
-                        color: 'white',
-                        fontSize: '0.875rem'
-                        }}>
-                        {session.horasAcumuladas} hrs
-                        </Box>
-                    </TableCell>
-                    <TableCell align="right">
-                        <IconButton color="primary" onClick={() => handleOpenDialog(session)} size="small">
-                        <Edit />
+                <Box sx={{ width: 300, padding: 3, display: 'flex', flexDirection: 'column', height: '100%' }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+                        <Typography variant="h6" sx={{ color: '#4fc3f7', fontWeight: 'bold' }}>
+                            Menú de Administración
+                        </Typography>
+                        <IconButton onClick={() => setMobileDrawerOpen(false)} sx={{ color: 'white' }}>
+                            <CloseIcon />
                         </IconButton>
-                        <IconButton color="error" onClick={() => handleDelete(session.id)} size="small">
-                        <Delete />
-                        </IconButton>
-                        <Button 
-                        size="small" 
-                        variant="outlined" 
-                        sx={{ ml: 1 }} 
-                        onClick={() => handleSelectStudent(session)}
-                        >
-                        Ver Alumno
-                        </Button>
-                    </TableCell>
-                    </TableRow>
-                ))}
-                </TableBody>
-            </Table>
-            </TableContainer>
-        </Box>
-
-        {/* Diálogo para agregar/editar alumno */}
-        <Dialog open={dialogOpen} onClose={handleCloseDialog} maxWidth="md" fullWidth>
-            <DialogTitle sx={{ backgroundColor: 'primary.main', color: 'white' }}>
-            {editSession ? 'Editar Alumno' : 'Agregar Nuevo Alumno'}
-            </DialogTitle>
-            <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 2 }}>
-            <TextField 
-                label="Nombre del alumno" 
-                name="nombre" 
-                value={form.nombre} 
-                onChange={handleChange} 
-                fullWidth 
-                required 
-                variant="outlined"
-            />
-            <TextField 
-                label="Encargado" 
-                name="encargado" 
-                value={form.encargado} 
-                onChange={handleChange} 
-                fullWidth 
-                required 
-                variant="outlined"
-            />
-            <TextField 
-                label="Inicio de Servicio" 
-                name="inicioServicio" 
-                type="date" 
-                value={form.inicioServicio} 
-                onChange={handleChange} 
-                fullWidth 
-                required 
-                variant="outlined"
-                InputLabelProps={{ shrink: true }} 
-            />
-            <TextField 
-                label="Fin de Servicio" 
-                name="finServicio" 
-                type="date" 
-                value={form.finServicio} 
-                onChange={handleChange} 
-                fullWidth 
-                variant="outlined"
-                InputLabelProps={{ shrink: true }} 
-            />
-            <TextField 
-                label="Horas acumuladas" 
-                name="horasAcumuladas" 
-                type="number" 
-                value={form.horasAcumuladas} 
-                onChange={handleChange} 
-                fullWidth 
-                required 
-                variant="outlined"
-            />
-            </DialogContent>
-            <DialogActions sx={{ p: 2 }}>
-            <Button onClick={handleCloseDialog} variant="outlined">Cancelar</Button>
-            <Button onClick={handleSave} variant="contained">
-                {editSession ? 'Actualizar' : 'Guardar'}
-            </Button>
-            </DialogActions>
-        </Dialog>
-
-        {/* Drawer de detalles de alumno */}
-        <Drawer anchor="right" open={drawerOpen} onClose={handleCloseDrawer}>
-            <Box sx={{ width: 500, p: 3, position: 'relative' }}>
-            <IconButton onClick={handleCloseDrawer} sx={{ position: 'absolute', top: 8, right: 8 }}>
-                <CloseIcon />
-            </IconButton>
-            {selectedStudent && (
-                <>
-                <Typography variant="h5" gutterBottom color="primary">Datos del Alumno</Typography>
-                <Box sx={{ mb: 2, p: 2, backgroundColor: 'grey.50', borderRadius: 2 }}>
-                    <Typography><b>Nombre:</b> {selectedStudent.nombre}</Typography>
-                    <Typography><b>Correo:</b> {selectedStudent.correo}</Typography>
-                    <Typography><b>Número de Control:</b> {selectedStudent.numeroControl}</Typography>
-                    <Typography><b>Carrera:</b> {selectedStudent.carrera}</Typography>
-                    <Typography><b>Semestre:</b> {selectedStudent.semestre}</Typography>
-                </Box>
-                <Typography variant="h6" gutterBottom color="primary">Historial de Sesiones</Typography>
-                <Box sx={{ mb: 2 }}>
-                    <Calendar
-                    onChange={handleFechaSeleccionada}
-                    value={fechaSeleccionada}
-                    locale="es"
-                    formatShortWeekday={(locale, date) => ['D', 'L', 'M', 'M', 'J', 'V', 'S'][date.getDay()]}
-                    formatMonthYear={(locale, date) => {
-                        const months = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
-                        return `${months[date.getMonth()]} ${date.getFullYear()}`;
-                    }}
-                    />
-                    <TableContainer component={Paper} sx={{ mt: 2 }}>
-                    <Table size="small">
-                        <TableHead>
-                        <TableRow>
-                            <TableCell>Fecha</TableCell>
-                            <TableCell>Entrada</TableCell>
-                            <TableCell>Salida</TableCell>
-                            <TableCell>Horas</TableCell>
-                            <TableCell>Actividad</TableCell>
-                        </TableRow>
-                        </TableHead>
-                        <TableBody>
-                        {registrosHistorial.map((registro, index) => (
-                            <TableRow 
-                            key={index} 
-                            selected={fechaSeleccionada && registro.fechaObj.toDateString() === fechaSeleccionada.toDateString()}
-                            >
-                            <TableCell>{registro.fechaObj.toLocaleDateString('es-MX')}</TableCell>
-                            <TableCell>{registro.horaEntrada}</TableCell>
-                            <TableCell>{registro.horaSalida}</TableCell>
-                            <TableCell>{registro.horasRealizadas}</TableCell>
-                            <TableCell>{registro.descripcion}</TableCell>
-                            </TableRow>
-                        ))}
-                        </TableBody>
-                    </Table>
-                    </TableContainer>
-                </Box>
-                <Box sx={{ mt: 3, display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-                    <Button variant="contained" color="secondary">Resetear Contraseña</Button>
-                    <Button
-                    variant="contained"
-                    color="error"
-                    disabled={!!selectedStudent.finServicio}
-                    onClick={() => handleDarDeBajaDesdeDashboard(selectedStudent.id)}
+                    </Box>
+                    
+                    {/* Gestión de Docentes */}
+                    <Typography variant="subtitle2" sx={{ mb: 1, mt: 1, fontWeight: 'bold', color: '#4fc3f7' }}>
+                        GESTIÓN DE DOCENTES
+                    </Typography>
+                    
+                    <GlowButton 
+                        startIcon={<PersonAdd />}
+                        fullWidth 
+                        variant="contained"
+                        sx={{ justifyContent: 'flex-start', mb: 1.5, py: 1.2 }}
+                        onClick={() => handleOpenDialog()}
                     >
-                    Dar de baja alumno
+                        Dar de Alta Docente
+                    </GlowButton>
+
+                    <Button 
+                        startIcon={<Delete />}
+                        fullWidth 
+                        variant="outlined"
+                        sx={{ 
+                            justifyContent: 'flex-start', 
+                            mb: 1.5, 
+                            py: 1.2,
+                            borderColor: 'rgba(244, 67, 54, 0.5)',
+                            color: '#f44336',
+                            '&:hover': {
+                                borderColor: '#f44336',
+                                backgroundColor: 'rgba(244, 67, 54, 0.1)',
+                            },
+                        }}
+                        onClick={() => setMobileDrawerOpen(false)}
+                    >
+                        Dar de Baja Docente
+                    </Button>
+
+                    <Button 
+                        startIcon={<Edit />}
+                        fullWidth 
+                        variant="outlined"
+                        sx={{ 
+                            justifyContent: 'flex-start', 
+                            mb: 2, 
+                            py: 1.2,
+                            borderColor: 'rgba(255, 255, 255, 0.3)',
+                            color: 'white',
+                            '&:hover': {
+                                borderColor: 'white',
+                                backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                            },
+                        }}
+                        onClick={() => setMobileDrawerOpen(false)}
+                    >
+                        Nueva Contraseña de Docente
+                    </Button>
+
+                    {/* Reportes y Administración */}
+                    <Typography variant="subtitle2" sx={{ mb: 1, mt: 2, fontWeight: 'bold', color: '#4fc3f7' }}>
+                        REPORTES Y ADMINISTRACIÓN
+                    </Typography>
+
+                    <Button 
+                        fullWidth 
+                        variant="outlined"
+                        sx={{ 
+                            justifyContent: 'flex-start', 
+                            mb: 1.5, 
+                            py: 1.2,
+                            borderColor: 'rgba(255, 255, 255, 0.3)',
+                            color: 'white',
+                            '&:hover': {
+                                borderColor: 'white',
+                                backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                            },
+                        }}
+                        onClick={handleOpenReporteHoras}
+                    >
+                        📊 Reportes de Horas
+                    </Button>
+
+                    <Button 
+                        fullWidth 
+                        variant="outlined"
+                        sx={{ 
+                            justifyContent: 'flex-start', 
+                            mb: 1.5, 
+                            py: 1.2,
+                            borderColor: 'rgba(255, 255, 255, 0.3)',
+                            color: 'white',
+                            '&:hover': {
+                                borderColor: 'white',
+                                backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                            },
+                        }}
+                        onClick={() => setMobileDrawerOpen(false)}
+                    >
+                        📈 Estadísticas
+                    </Button>
+
+                    <Button 
+                        fullWidth 
+                        variant="outlined"
+                        sx={{ 
+                            justifyContent: 'flex-start', 
+                            mb: 1.5, 
+                            py: 1.2,
+                            borderColor: 'rgba(255, 255, 255, 0.3)',
+                            color: 'white',
+                            '&:hover': {
+                                borderColor: 'white',
+                                backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                            },
+                        }}
+                        onClick={() => setMobileDrawerOpen(false)}
+                    >
+                        📋 Lista de Asistencia
+                    </Button>
+
+                    <Button 
+                        fullWidth 
+                        variant="outlined"
+                        sx={{ 
+                            justifyContent: 'flex-start', 
+                            mb: 2, 
+                            py: 1.2,
+                            borderColor: 'rgba(255, 255, 255, 0.3)',
+                            color: 'white',
+                            '&:hover': {
+                                borderColor: 'white',
+                                backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                            },
+                        }}
+                        onClick={() => setMobileDrawerOpen(false)}
+                    >
+                        🏢 Gestión de Encargados
+                    </Button>
+
+                    {/* Gestión de Asignaciones */}
+                    <Typography variant="subtitle2" sx={{ mb: 1, mt: 2, fontWeight: 'bold', color: '#4fc3f7' }}>
+                        GESTIÓN DE ASIGNACIONES
+                    </Typography>
+
+                    <Button
+                        startIcon={<Assignment />}
+                        fullWidth
+                        variant="contained"
+                        sx={{
+                            justifyContent: 'flex-start',
+                            mb: 1.5,
+                            py: 1.2,
+                            background: 'linear-gradient(45deg, #1976d2 30%, #42a5f5 90%)',
+                            '&:hover': {
+                                background: 'linear-gradient(45deg, #1565c0 30%, #1976d2 90%)',
+                            },
+                        }}
+                        onClick={handleOpenAsignation}
+                    >
+                        Nueva Asignación
+                    </Button>
+
+                    {/* Configuración */}
+                    <Typography variant="subtitle2" sx={{ mb: 1, mt: 1, fontWeight: 'bold', color: '#4fc3f7' }}>
+                        CONFIGURACIÓN
+                    </Typography>
+
+                    <Button 
+                        fullWidth 
+                        variant="outlined"
+                        sx={{ 
+                            justifyContent: 'flex-start', 
+                            mb: 1.5, 
+                            py: 1.2,
+                            borderColor: 'rgba(255, 255, 255, 0.3)',
+                            color: 'white',
+                            '&:hover': {
+                                borderColor: 'white',
+                                backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                            },
+                        }}
+                        onClick={() => setMobileDrawerOpen(false)}
+                    >
+                        ⚙️ Configuración General
+                    </Button>
+
+                    <Button 
+                        fullWidth 
+                        variant="outlined"
+                        sx={{ 
+                            justifyContent: 'flex-start', 
+                            mb: 1.5, 
+                            py: 1.2,
+                            borderColor: 'rgba(255, 255, 255, 0.3)',
+                            color: 'white',
+                            '&:hover': {
+                                borderColor: 'white',
+                                backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                            },
+                        }}
+                        onClick={() => setMobileDrawerOpen(false)}
+                    >
+                        📤 Exportar Datos
+                    </Button>
+
+                    <Button 
+                        fullWidth 
+                        variant="outlined"
+                        sx={{ 
+                            justifyContent: 'flex-start', 
+                            mb: 2, 
+                            py: 1.2,
+                            borderColor: 'rgba(255, 255, 255, 0.3)',
+                            color: 'white',
+                            '&:hover': {
+                                borderColor: 'white',
+                                backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                            },
+                        }}
+                        onClick={() => setMobileDrawerOpen(false)}
+                    >
+                        🔔 Notificaciones
+                    </Button>
+                    
+                    <Box sx={{ flexGrow: 1 }} />
+                    
+                    <Button 
+                        fullWidth 
+                        variant="contained"
+                        sx={{ 
+                            justifyContent: 'flex-start', 
+                            mt: 'auto', 
+                            py: 1.5,
+                            background: 'linear-gradient(45deg, #f44336 30%, #d32f2f 90%)',
+                            '&:hover': {
+                                background: 'linear-gradient(45deg, #d32f2f 30%, #b71c1c 90%)',
+                            },
+                        }}
+                        onClick={() => setMobileDrawerOpen(false)}
+                    >
+                        🚪 Cerrar Sesión
                     </Button>
                 </Box>
-                </>
-            )}
-            </Box>
-        </Drawer>
+            </Drawer>
 
-        {/* Drawer de Reporte de Horas Semanal */}
-        <Drawer anchor="right" open={reporteDrawerOpen} onClose={handleCloseReporteHoras}>
-            <Box sx={{ width: 800, p: 3, position: 'relative' }}>
-            <IconButton onClick={handleCloseReporteHoras} sx={{ position: 'absolute', top: 8, right: 8 }}>
-                <CloseIcon />
-            </IconButton>
-            
-            <Typography variant="h5" gutterBottom color="primary" sx={{ mb: 3 }}>
-                📊 Reporte de Horas Semanal
-            </Typography>
-            
-            {reporteSemanal.map((semana, index) => (
-                <Box key={index} sx={{ mb: 4 }}>
-                <Typography variant="h6" sx={{ mb: 2, color: 'primary.main', fontWeight: 'bold' }}>
-                    Semana: {semana.semana}
-                </Typography>
-                
-                <TableContainer component={Paper} sx={{ mb: 2, boxShadow: 2 }}>
-                    <Table size="small">
-                    <TableHead>
-                        <TableRow sx={{ backgroundColor: 'primary.light' }}>
-                        <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Alumno</TableCell>
-                        <TableCell align="center" sx={{ color: 'white', fontWeight: 'bold' }}>Lun</TableCell>
-                        <TableCell align="center" sx={{ color: 'white', fontWeight: 'bold' }}>Mar</TableCell>
-                        <TableCell align="center" sx={{ color: 'white', fontWeight: 'bold' }}>Mié</TableCell>
-                        <TableCell align="center" sx={{ color: 'white', fontWeight: 'bold' }}>Jue</TableCell>
-                        <TableCell align="center" sx={{ color: 'white', fontWeight: 'bold' }}>Vie</TableCell>
-                        <TableCell align="center" sx={{ color: 'white', fontWeight: 'bold' }}>Sáb</TableCell>
-                        <TableCell align="center" sx={{ color: 'white', fontWeight: 'bold' }}>Dom</TableCell>
-                        <TableCell align="center" sx={{ color: 'white', fontWeight: 'bold', backgroundColor: 'primary.dark' }}>Total</TableCell>
-                        </TableRow>
-                    </TableHead>
-                    <TableBody>
-                        {semana.alumnos.map((alumno, idx) => (
-                        <TableRow key={idx}>
-                            <TableCell sx={{ fontWeight: 'medium' }}>{alumno.nombre}</TableCell>
-                            <TableCell align="center">{alumno.horasPorDia.lunes}</TableCell>
-                            <TableCell align="center">{alumno.horasPorDia.martes}</TableCell>
-                            <TableCell align="center">{alumno.horasPorDia.miercoles}</TableCell>
-                            <TableCell align="center">{alumno.horasPorDia.jueves}</TableCell>
-                            <TableCell align="center">{alumno.horasPorDia.viernes}</TableCell>
-                            <TableCell align="center" sx={{ color: 'text.secondary' }}>{alumno.horasPorDia.sabado}</TableCell>
-                            <TableCell align="center" sx={{ color: 'text.secondary' }}>{alumno.horasPorDia.domingo}</TableCell>
-                            <TableCell align="center" sx={{ 
-                            fontWeight: 'bold', 
-                            backgroundColor: 'success.light',
-                            color: 'success.contrastText'
-                            }}>
-                            {alumno.totalSemanal}h
-                            </TableCell>
-                        </TableRow>
-                        ))}
-                        <TableRow sx={{ backgroundColor: 'grey.100' }}>
-                        <TableCell sx={{ fontWeight: 'bold' }}>TOTAL GENERAL</TableCell>
-                        <TableCell align="center" sx={{ fontWeight: 'bold' }}>
-                            {semana.alumnos.reduce((sum, a) => sum + a.horasPorDia.lunes, 0)}
-                        </TableCell>
-                        <TableCell align="center" sx={{ fontWeight: 'bold' }}>
-                            {semana.alumnos.reduce((sum, a) => sum + a.horasPorDia.martes, 0)}
-                        </TableCell>
-                        <TableCell align="center" sx={{ fontWeight: 'bold' }}>
-                            {semana.alumnos.reduce((sum, a) => sum + a.horasPorDia.miercoles, 0)}
-                        </TableCell>
-                        <TableCell align="center" sx={{ fontWeight: 'bold' }}>
-                            {semana.alumnos.reduce((sum, a) => sum + a.horasPorDia.jueves, 0)}
-                        </TableCell>
-                        <TableCell align="center" sx={{ fontWeight: 'bold' }}>
-                            {semana.alumnos.reduce((sum, a) => sum + a.horasPorDia.viernes, 0)}
-                        </TableCell>
-                        <TableCell align="center" sx={{ fontWeight: 'bold', color: 'text.secondary' }}>
-                            {semana.alumnos.reduce((sum, a) => sum + a.horasPorDia.sabado, 0)}
-                        </TableCell>
-                        <TableCell align="center" sx={{ fontWeight: 'bold', color: 'text.secondary' }}>
-                            {semana.alumnos.reduce((sum, a) => sum + a.horasPorDia.domingo, 0)}
-                        </TableCell>
-                        <TableCell align="center" sx={{ 
-                            fontWeight: 'bold', 
-                            backgroundColor: 'primary.main',
-                            color: 'white',
-                            fontSize: '1.1rem'
-                        }}>
-                            {semana.totalGeneral}h
-                        </TableCell>
-                        </TableRow>
-                    </TableBody>
-                    </Table>
-                </TableContainer>
-                
-                {/* Resumen de la semana */}
-                <Box sx={{ 
-                    display: 'flex', 
-                    gap: 2, 
-                    mb: 3, 
-                    p: 2, 
-                    backgroundColor: 'grey.50', 
-                    borderRadius: 2 
+            {/* Dialog para editar/agregar */}
+            <Dialog 
+                open={dialogOpen} 
+                onClose={handleCloseDialog}
+                maxWidth="md"
+                fullWidth
+                sx={{
+                    '& .MuiDialog-paper': {
+                        borderRadius: '16px',
+                        background: 'linear-gradient(145deg, #ffffff 0%, #f5f7fa 100%)',
+                    },
+                }}
+            >
+                <DialogTitle sx={{ 
+                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    color: 'white',
+                    fontWeight: 'bold',
                 }}>
-                    <Box sx={{ textAlign: 'center' }}>
-                    <Typography variant="h6" color="primary">{semana.alumnos.length}</Typography>
-                    <Typography variant="caption">Alumnos Activos</Typography>
-                    </Box>
-                    <Box sx={{ textAlign: 'center' }}>
-                    <Typography variant="h6" color="success.main">{semana.totalGeneral}h</Typography>
-                    <Typography variant="caption">Total de Horas</Typography>
-                    </Box>
-                    <Box sx={{ textAlign: 'center' }}>
-                    <Typography variant="h6" color="info.main">
-                        {(semana.totalGeneral / semana.alumnos.length).toFixed(1)}h
-                    </Typography>
-                    <Typography variant="caption">Promedio por Alumno</Typography>
-                    </Box>
-                </Box>
-                </Box>
-            ))}
-            
-            {/* Botones de acción */}
-            <Box sx={{ mt: 3, display: 'flex', gap: 2, justifyContent: 'center' }}>
-                <Button variant="contained" color="primary">
-                📤 Exportar a Excel
-                </Button>
-                <Button variant="outlined" color="primary">
-                🖨️ Imprimir Reporte
-                </Button>
-                <Button variant="outlined" color="secondary">
-                📧 Enviar por Email
-                </Button>
-            </Box>
-            </Box>
-        </Drawer>
+                    {editSession ? 'Editar Docente' : 'Agregar Nuevo Docente'}
+                </DialogTitle>
+                <DialogContent sx={{ pt: 3 }}>
+                    <Grid container spacing={3}>
+                        <Grid item xs={12} sm={6}>
+                            <TextField
+                                name="nombre"
+                                label="Nombre"
+                                value={form.nombre}
+                                onChange={handleChange}
+                                fullWidth
+                                required
+                                sx={{ mb: 2 }}
+                            />
+                        </Grid>
+                        <Grid item xs={12} sm={6}>
+                            <TextField
+                                name="numeroControl"
+                                label="Número de Control"
+                                value={form.numeroControl}
+                                onChange={handleChange}
+                                fullWidth
+                                required
+                                sx={{ mb: 2 }}
+                            />
+                        </Grid>
+                        <Grid item xs={12} sm={6}>
+                            <TextField
+                                name="email"
+                                label="Email"
+                                type="email"
+                                value={form.email}
+                                onChange={handleChange}
+                                fullWidth
+                                required
+                                sx={{ mb: 2 }}
+                            />
+                        </Grid>
+                        <Grid item xs={12} sm={6}>
+                            <TextField
+                                name="carrera"
+                                label="Carrera"
+                                value={form.carrera}
+                                onChange={handleChange}
+                                fullWidth
+                                required
+                                sx={{ mb: 2 }}
+                            />
+                        </Grid>
+                    </Grid>
+                </DialogContent>
+                <DialogActions sx={{ p: 3 }}>
+                    <Button 
+                        onClick={handleCloseDialog}
+                        variant="outlined"
+                        sx={{ 
+                            borderRadius: '12px',
+                            color: 'text.secondary',
+                            borderColor: 'rgba(0, 0, 0, 0.12)',
+                            '&:hover': {
+                                borderColor: 'rgba(0, 0, 0, 0.24)',
+                                backgroundColor: 'rgba(0, 0, 0, 0.04)',
+                            },
+                        }}
+                    >
+                        Cancelar
+                    </Button>
+                    <GlowButton
+                        onClick={handleSave}
+                        variant="contained"
+                        sx={{ ml: 2 }}
+                    >
+                        {editSession ? 'Guardar Cambios' : 'Crear Docente'}
+                    </GlowButton>
+                </DialogActions>
+            </Dialog>
+
+            {/* Diálogo de Asignaciones */}
+            <Asignation
+                open={asignationOpen}
+                onClose={handleCloseAsignation}
+                users={users}
+            />
         </Box>
     );
-    }
+}

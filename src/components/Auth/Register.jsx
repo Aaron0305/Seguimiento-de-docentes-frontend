@@ -98,16 +98,13 @@ export default function Register() {
   const [fotoPreview, setFotoPreview] = useState(null);
   const fileInputRef = useRef(null);
   const [carreras, setCarreras] = useState([]);
-  const [semestres, setSemestres] = useState([]);
   const [isLoadingCarreras, setIsLoadingCarreras] = useState(true);
-  const [isLoadingSemestres, setIsLoadingSemestres] = useState(true);
   const [formData, setFormData] = useState({
     numeroControl: '',
     nombre: '',
     apellidoPaterno: '',
     apellidoMaterno: '',
     carrera: '',
-    semestre: '',
     email: '',
     password: '',
     confirmPassword: ''
@@ -146,32 +143,6 @@ export default function Register() {
     };
 
     fetchCarreras();
-  }, []);
-
-  // Efecto para cargar semestres
-  useEffect(() => {
-    const fetchSemestres = async () => {
-      setIsLoadingSemestres(true);
-      try {
-        const response = await fetch('http://localhost:3001/api/semestres');
-        if (!response.ok) {
-          throw new Error('Error al cargar semestres');
-        }
-        const data = await response.json();
-        if (Array.isArray(data)) {
-          setSemestres(data);
-        } else {
-          throw new Error('Formato de datos inválido');
-        }
-      } catch (error) {
-        console.error('Error:', error);
-        setError('Error al cargar los semestres');
-      } finally {
-        setIsLoadingSemestres(false);
-      }
-    };
-
-    fetchSemestres();
   }, []);
 
   const handleChange = (e) => {
@@ -273,37 +244,53 @@ export default function Register() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (activeStep !== steps.length - 1) {
+      handleNext();
+      return;
+    }
+    
     setLoading(true);
     setError('');
     
-    if (formData.password !== formData.confirmPassword) {
-      setError('Las contraseñas no coinciden');
-      setLoading(false);
-      return;
-    }
-
     try {
-      const formDataWithFile = new FormData();
+      // Validaciones
+      if (!formData.numeroControl || !formData.nombre || !formData.apellidoPaterno || !formData.apellidoMaterno || !formData.carrera) {
+        throw new Error('Por favor, completa todos los campos obligatorios');
+      }
+
+      if (formData.password !== formData.confirmPassword) {
+        throw new Error('Las contraseñas no coinciden');
+      }
+
+      if (formData.password.length < 6) {
+        throw new Error('La contraseña debe tener al menos 6 caracteres');
+      }
+
+      const formDataToSend = new FormData();
+      
       // Agregar todos los campos excepto confirmPassword
       Object.keys(formData).forEach(key => {
         if (key !== 'confirmPassword') {
-          formDataWithFile.append(key, formData[key]);
+          formDataToSend.append(key, formData[key]);
         }
       });
       
       if (foto) {
-        // Asegurarse de que el nombre del archivo sea único
         const fileExtension = foto.name.split('.').pop();
         const uniqueFileName = `${formData.numeroControl}_${Date.now()}.${fileExtension}`;
-        formDataWithFile.append('fotoPerfil', foto, uniqueFileName);
+        formDataToSend.append('fotoPerfil', foto, uniqueFileName);
       }
 
-      const response = await register(formDataWithFile);
+      console.log('Enviando datos de registro:', Object.fromEntries(formDataToSend));
+      
+      const response = await register(formDataToSend);
+      console.log('Respuesta del registro:', response);
+      
       setSuccess(true);
       setTimeout(() => navigate('/login'), 1500);
       
     } catch (err) {
-      console.error('Error detallado:', err);
+      console.error('Error en el registro:', err);
       setError(err.message || 'Error al registrar usuario');
     } finally {
       setLoading(false);
@@ -426,29 +413,6 @@ export default function Register() {
                 <MenuItem disabled>No hay carreras disponibles</MenuItem>
               )}
             </AnimatedTextField>
-
-            <AnimatedTextField
-              label="Semestre"
-              name="semestre"
-              value={formData.semestre}
-              onChange={handleChange}
-              required
-              select
-              icon={<MenuBook />}
-              disabled={isLoadingSemestres}
-            >
-              {isLoadingSemestres ? (
-                <MenuItem disabled>Cargando semestres...</MenuItem>
-              ) : semestres.length > 0 ? (
-                semestres.map((semestre) => (
-                  <MenuItem key={semestre._id} value={semestre.numero}>
-                    {semestre.descripcion}
-                  </MenuItem>
-                ))
-              ) : (
-                <MenuItem disabled>No hay semestres disponibles</MenuItem>
-              )}
-            </AnimatedTextField>
           </Box>
         );
       case 2:
@@ -562,6 +526,18 @@ export default function Register() {
                   </Grow>
                 )}
 
+                {success && (
+                  <Grow in={success} timeout={500}>
+                    <Alert
+                      severity="success"
+                      variant="filled"
+                      sx={{ mt: 2 }}
+                    >
+                      ¡Registro exitoso! Redirigiendo al inicio de sesión...
+                    </Alert>
+                  </Grow>
+                )}
+
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 4 }}>
                   <Button
                     disabled={activeStep === 0}
@@ -572,7 +548,7 @@ export default function Register() {
                   </Button>
                   <Button
                     variant="contained"
-                    onClick={activeStep === steps.length - 1 ? handleSubmit : handleNext}
+                    onClick={handleSubmit}
                     endIcon={activeStep === steps.length - 1 ? <Save /> : <KeyboardArrowRight />}
                     disabled={loading}
                   >

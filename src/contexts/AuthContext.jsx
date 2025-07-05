@@ -30,16 +30,32 @@ export const AuthProvider = ({ children }) => {
 
   const register = async (userData) => {
     try {
-      const response = await axios.post('http://localhost:3001/api/auth/register', userData);
-      const { success, message, user } = response.data;
+      console.log('📝 Datos de registro:', userData);
+      
+      const response = await axios.post('http://localhost:3001/api/auth/register', userData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        }
+      });
 
-      if (success) {
-        return { success: true, user, message };
+      console.log('✅ Respuesta del servidor:', response.data);
+
+      if (response.data.success) {
+        return { success: true, user: response.data.user, message: response.data.message };
       } else {
-        throw new Error(message || 'Error inesperado durante el registro');
+        throw new Error(response.data.message || 'Error inesperado durante el registro');
       }
     } catch (error) {
-      throw new Error(error.response?.data?.message || 'Error al registrar usuario');
+      console.error('❌ Error detallado:', error);
+      console.error('❌ Respuesta del servidor:', error.response?.data);
+      
+      if (error.response?.data?.message) {
+        throw new Error(error.response.data.message);
+      } else if (error.message) {
+        throw new Error(error.message);
+      } else {
+        throw new Error('Error al registrar usuario. Por favor, intenta de nuevo.');
+      }
     }
   };
 

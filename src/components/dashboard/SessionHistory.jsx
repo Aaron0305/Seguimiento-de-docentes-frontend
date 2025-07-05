@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Calendar from 'react-calendar';
 import 'react-calendar/dist/Calendar.css';
 import {
@@ -22,7 +22,13 @@ import {
   Modal,
   Chip,
   Divider,
-  useTheme
+  useTheme,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Alert,
+  CircularProgress
 } from '@mui/material';
 import { 
   ArrowBack, 
@@ -31,8 +37,12 @@ import {
   AttachFile,
   PlayCircleFilled,
   CheckCircle,
-  Today
+  Today,
+  CloudUpload,
+  Delete
 } from '@mui/icons-material';
+import { format } from 'date-fns';
+import { es } from 'date-fns/locale';
 
 // Estilos personalizados
 const StyledCalendarContainer = styled(Paper)(() => ({
@@ -157,6 +167,20 @@ const DetailContent = styled(Box)(({ theme }) => ({
   }
 }));
 
+const Input = styled('input')({
+  display: 'none',
+});
+
+const FilePreview = styled(Box)(({ theme }) => ({
+  display: 'flex',
+  alignItems: 'center',
+  gap: theme.spacing(1),
+  padding: theme.spacing(1),
+  border: `1px solid ${theme.palette.divider}`,
+  borderRadius: theme.spacing(1),
+  marginTop: theme.spacing(1),
+}));
+
 const ActivityDetails = ({ registro }) => {
   return (
     <ActivityCard>
@@ -240,206 +264,263 @@ const SessionHistory = ({
   registroSeleccionado,
   getFileIcon
 }) => {
+  const [assignments, setAssignments] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
+  const [selectedAssignment, setSelectedAssignment] = useState(null);
+  const [selectedFiles, setSelectedFiles] = useState([]);
+  const [uploadLoading, setUploadLoading] = useState(false);
+  const [uploadError, setUploadError] = useState('');
+
+  useEffect(() => {
+    fetchAssignments();
+  }, []);
+
+  const fetchAssignments = async () => {
+    try {
+      const response = await fetch('http://localhost:3001/api/assignments/my-assignments', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Error al cargar las asignaciones');
+      }
+
+      const data = await response.json();
+      setAssignments(data.data);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleOpenUploadDialog = (assignment) => {
+    setSelectedAssignment(assignment);
+    setUploadDialogOpen(true);
+    setSelectedFiles([]);
+    setUploadError('');
+  };
+
+  const handleCloseUploadDialog = () => {
+    setUploadDialogOpen(false);
+    setSelectedAssignment(null);
+    setSelectedFiles([]);
+    setUploadError('');
+  };
+
+  const handleFileSelect = (event) => {
+    const files = Array.from(event.target.files);
+    setSelectedFiles(prev => [...prev, ...files]);
+  };
+
+  const handleRemoveFile = (index) => {
+    setSelectedFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleSubmitFiles = async () => {
+    if (selectedFiles.length === 0) {
+      setUploadError('Por favor, selecciona al menos un archivo');
+      return;
+    }
+
+    setUploadLoading(true);
+    setUploadError('');
+
+    try {
+      const formData = new FormData();
+      selectedFiles.forEach(file => {
+        formData.append('files', file);
+      });
+
+      const response = await fetch(`http://localhost:3001/api/assignments/${selectedAssignment._id}/submit`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: formData
+      });
+
+      if (!response.ok) {
+        throw new Error('Error al subir los archivos');
+      }
+
+      handleCloseUploadDialog();
+      fetchAssignments();
+    } catch (err) {
+      setUploadError(err.message);
+    } finally {
+      setUploadLoading(false);
+    }
+  };
+
+  const getStatusColor = (dueDate) => {
+    const now = new Date();
+    const due = new Date(dueDate);
+    
+    if (now > due) return 'error';
+    if (now.getTime() + (24 * 60 * 60 * 1000) > due.getTime()) return 'warning';
+    return 'success';
+  };
+
+  if (loading) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+  if (error) {
+    return (
+      <Box sx={{ p: 3 }}>
+        <Alert severity="error">{error}</Alert>
+      </Box>
+    );
+  }
+
   return (
     <Box sx={{ p: 3 }}>
-      <Fade in={mostrarTabla}>
-        <Box sx={{ display: mostrarTabla ? 'block' : 'none' }}>
-          <StyledCalendarContainer elevation={3}>
-            <Calendar
-              onChange={handleFechaSeleccionada}
-              value={fechaSeleccionada}
-              locale="es"
-              formatShortWeekday={(locale, date) => 
-                ['D', 'L', 'M', 'M', 'J', 'V', 'S'][date.getDay()]
-              }
-              formatMonthYear={(locale, date) => {
-                const months = [
-                  'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-                  'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
-                ];
-                return `${months[date.getMonth()]} ${date.getFullYear()}`;
-              }}
-              tileClassName={tileClassName}
-            />
-              <div className="calendar-legend">
-                <div className="legend-item">
-                  <div className="legend-marker registro">
-                    <Today sx={{ color: '#1976d2', fontSize: 20 }} />
-                  </div>
-                  <span>Días con registro</span>
-                </div>
-                <div className="legend-item">
-                  <div className="legend-marker inicio">
-                    <PlayCircleFilled sx={{ color: '#4caf50', fontSize: 20 }} />
-                  </div>
-                  <span>Inicio del servicio</span>
-                </div>
-                <div className="legend-item">
-                  <div className="legend-marker fin">
-                    <CheckCircle sx={{ color: '#e91e63', fontSize: 20 }} />
-                  </div>
-                  <span>Fin del servicio (500 horas)</span>
-                </div>
-              </div>
-          </StyledCalendarContainer>
+      <Typography variant="h4" sx={{ mb: 4 }}>
+        Asignaciones Pendientes
+      </Typography>
 
-          {registrosHistorial.length > 0 ? (
-            <Grow in timeout={500}>
-              <StyledTableContainer component={Paper} sx={{ width: '100%', overflowX: 'auto' }}>
-                <Table sx={{ minWidth: 650 }} size="small" aria-label="tabla de historial">
-                  <TableHead>
-                    <TableRow sx={{
-                      background: 'linear-gradient(45deg, #2196F3 30%, #21CBF3 90%)',
-                      '& th': {
-                        color: 'white',
-                        fontWeight: 'bold',
-                        fontSize: '1rem'
-                      }
-                    }}>
-                      <StyledTableCell className="header">Fecha</StyledTableCell>
-                      <StyledTableCell className="header">Horario</StyledTableCell>
-                      <StyledTableCell className="header">Tiempo</StyledTableCell>
-                      <StyledTableCell className="header">Título</StyledTableCell>
-                      <StyledTableCell className="header">Detalles</StyledTableCell>
-                      <StyledTableCell className="header">Observaciones</StyledTableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {registrosHistorial.map((registro, index) => (
-                      <StyledTableRow 
-                        key={index} 
-                        hover
-                      >
-                        <TableCell>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <Event color="primary" />
-                            <Typography>{registro.fecha}</Typography>
-                          </Box>
-                        </TableCell>
-                        <TableCell>
-                          <Box sx={{ display: 'flex', flexDirection: 'column' }}>
-                            <Typography variant="body2" color="primary">
-                              Entrada: {registro.horaEntrada}
-                            </Typography>
-                            <Typography variant="body2" color="secondary">
-                              Salida: {registro.horaSalida}
-                            </Typography>
-                          </Box>
-                        </TableCell>
-                        <TableCell>
-                          {(() => {
-                            const horas = parseFloat(registro.horasRealizadas);
-                            const horasEnteras = Math.floor(horas);
-                            const minutosDecimal = (horas - horasEnteras) * 60;
-                            const minutos = Math.round(minutosDecimal);
-                            return `${horasEnteras} horas y ${minutos} minutos`;
-                          })()}
-                        </TableCell>
-                        <TableCell>{registro.titulo}</TableCell>
-                        <TableCell sx={{ maxWidth: 220, whiteSpace: 'pre-line', overflow: 'hidden', textOverflow: 'ellipsis', wordBreak: 'break-word' }}>
-                          {registro.descripcion}
-                        </TableCell>
-                        <TableCell sx={{ maxWidth: 220, whiteSpace: 'pre-line', overflow: 'hidden', textOverflow: 'ellipsis', wordBreak: 'break-word' }}>
-                          {registro.observaciones}
-                        </TableCell>
-                      </StyledTableRow>
-                    ))}
-                    <TableRow>
-                      <TableCell colSpan={3}>
-                        <Typography variant="subtitle1" fontWeight="bold">
-                          Total de horas:
-                        </Typography>
-                      </TableCell>
-                      <TableCell>                          <Typography variant="subtitle1" fontWeight="bold">
-                          {totalHoras()}
-                        </Typography>
-                      </TableCell>
-                      <TableCell />
-                      <TableCell />
-                    </TableRow>
-                  </TableBody>
-                </Table>
-              </StyledTableContainer>
-            </Grow>
-          ) : (
-            <Typography variant="subtitle1" textAlign="center" sx={{ mt: 3 }}>
-              No hay registros disponibles. Inicia tu primer registro para comenzar.
-            </Typography>
-          )}
-        </Box>
-      </Fade>
-
-      <Fade in={mostrarDetalle}>
-        <Box sx={{ display: mostrarDetalle ? 'block' : 'none' }}>
-          <Paper sx={{ p: 3, borderRadius: 2 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
-              <IconButton onClick={volverATabla} sx={{ mr: 2 }}>
-                <ArrowBack />
-              </IconButton>
-              <Typography variant="h5">
-                {formatearFecha(fechaSeleccionada)}
-              </Typography>
-            </Box>
-
-            {registroSeleccionado ? (
-              <Grow in timeout={500}>
-                <Box>
-                  <Grid container spacing={3}>
-                    <Grid item xs={12} md={4}>
-                      <Card>
-                        <CardContent>
-                          <Typography variant="subtitle2" color="textSecondary">
-                            Hora de entrada
-                          </Typography>
-                          <Typography variant="h6">
-                            {registroSeleccionado.horaEntrada}
-                          </Typography>
-                        </CardContent>
-                      </Card>
-                    </Grid>
-                    <Grid item xs={12} md={4}>
-                      <Card>
-                        <CardContent>
-                          <Typography variant="subtitle2" color="textSecondary">
-                            Hora de salida
-                          </Typography>
-                          <Typography variant="h6">
-                            {registroSeleccionado.horaSalida}
-                          </Typography>
-                        </CardContent>
-                      </Card>
-                    </Grid>
-                    <Grid item xs={12} md={4}>
-                      <Card>
-                        <CardContent>
-                          <Typography variant="subtitle2" color="textSecondary">
-                            Horas realizadas
-                          </Typography>
-                          <Typography variant="h6">                            {(() => {
-                              const horas = parseFloat(registroSeleccionado.horasRealizadas);
-                              const horasEnteras = Math.floor(horas);
-                              const minutosDecimal = (horas - horasEnteras) * 60;
-                              const minutos = Math.round(minutosDecimal);
-                              return `${horasEnteras} horas y ${minutos} minutos`;
-                            })()}
-                          </Typography>
-                        </CardContent>
-                      </Card>
-                    </Grid>
-                  </Grid>
-
-                  {/* Detalles de actividades */}
-                  <ActivityDetails registro={registroSeleccionado} />
-                </Box>
-              </Grow>
+      <TableContainer component={Paper} sx={{ borderRadius: 2, boxShadow: 3 }}>
+        <Table>
+          <TableHead>
+            <TableRow sx={{ bgcolor: 'primary.main' }}>
+              <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Título</TableCell>
+              <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Descripción</TableCell>
+              <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Fecha de Entrega</TableCell>
+              <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Estado</TableCell>
+              <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Archivos Adjuntos</TableCell>
+              <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Acciones</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {assignments.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={6} align="center">
+                  <Typography variant="subtitle1" sx={{ py: 3 }}>
+                    No hay asignaciones pendientes
+                  </Typography>
+                </TableCell>
+              </TableRow>
             ) : (
-              <Typography variant="subtitle1">
-                No hay registros para esta fecha
-              </Typography>
+              assignments.map((assignment) => (
+                <TableRow key={assignment._id} hover>
+                  <TableCell>{assignment.title}</TableCell>
+                  <TableCell>{assignment.description}</TableCell>
+                  <TableCell>
+                    {format(new Date(assignment.dueDate), "d 'de' MMMM 'de' yyyy, HH:mm", { locale: es })}
+                  </TableCell>
+                  <TableCell>
+                    <Chip
+                      label={assignment.status === 'completed' ? 'Completada' : 'Pendiente'}
+                      color={getStatusColor(assignment.dueDate)}
+                      size="small"
+                    />
+                  </TableCell>
+                  <TableCell>
+                    {assignment.attachments.map((file, index) => (
+                      <Chip
+                        key={index}
+                        icon={<Description />}
+                        label={file.fileName}
+                        size="small"
+                        sx={{ mr: 1, mb: 1 }}
+                        onClick={() => window.open(`http://localhost:3001/${file.fileUrl}`, '_blank')}
+                      />
+                    ))}
+                  </TableCell>
+                  <TableCell>
+                    <Button
+                      variant="contained"
+                      startIcon={<CloudUpload />}
+                      onClick={() => handleOpenUploadDialog(assignment)}
+                      disabled={assignment.status === 'completed'}
+                    >
+                      Subir Entrega
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))
             )}
-          </Paper>
-        </Box>
-      </Fade>
+          </TableBody>
+        </Table>
+      </TableContainer>
+
+      {/* Diálogo de subida de archivos */}
+      <Dialog
+        open={uploadDialogOpen}
+        onClose={handleCloseUploadDialog}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle sx={{ bgcolor: 'primary.main', color: 'white' }}>
+          Subir Entrega
+        </DialogTitle>
+        <DialogContent sx={{ mt: 2 }}>
+          {uploadError && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {uploadError}
+            </Alert>
+          )}
+
+          <Typography variant="subtitle1" gutterBottom>
+            {selectedAssignment?.title}
+          </Typography>
+
+          <Box sx={{ mt: 2 }}>
+            <label htmlFor="upload-files">
+              <Input
+                id="upload-files"
+                type="file"
+                multiple
+                onChange={handleFileSelect}
+              />
+              <Button
+                variant="outlined"
+                component="span"
+                startIcon={<AttachFile />}
+              >
+                Seleccionar Archivos
+              </Button>
+            </label>
+
+            {selectedFiles.map((file, index) => (
+              <FilePreview key={index}>
+                <Typography variant="body2" noWrap sx={{ flex: 1 }}>
+                  {file.name}
+                </Typography>
+                <IconButton
+                  size="small"
+                  onClick={() => handleRemoveFile(index)}
+                  color="error"
+                >
+                  <Delete />
+                </IconButton>
+              </FilePreview>
+            ))}
+          </Box>
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+          <Button onClick={handleCloseUploadDialog}>
+            Cancelar
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleSubmitFiles}
+            disabled={uploadLoading || selectedFiles.length === 0}
+            startIcon={uploadLoading ? <CircularProgress size={20} /> : <CloudUpload />}
+          >
+            {uploadLoading ? 'Subiendo...' : 'Subir Archivos'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };
