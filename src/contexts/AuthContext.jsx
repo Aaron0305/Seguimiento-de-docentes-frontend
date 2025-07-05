@@ -31,7 +31,7 @@ export const AuthProvider = ({ children }) => {
   const register = async (userData) => {
     try {
       const response = await axios.post('http://localhost:3001/api/auth/register', userData);
-      const { success, message, user, token } = response.data;
+      const { success, message, user } = response.data;
 
       if (success) {
         return { success: true, user, message };
@@ -112,6 +112,44 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // ✨ NUEVO: Función para solicitar recuperación de contraseña
+  const forgotPassword = async (email) => {
+    try {
+      console.log('📧 Enviando solicitud de recuperación para:', email);
+      const response = await axios.post('http://localhost:3001/api/auth/forgot-password', {
+        email
+      });
+      
+      console.log('✅ Respuesta del servidor:', response.data);
+      
+      return { 
+        success: true, 
+        message: response.data.message || 'Se ha enviado un enlace de recuperación a tu correo electrónico' 
+      };
+    } catch (error) {
+      console.error('❌ Error en forgotPassword:', error);
+      console.error('❌ Respuesta del error:', error.response?.data);
+      throw new Error(error.response?.data?.message || 'Error al procesar la solicitud');
+    }
+  };
+
+  // ✨ NUEVO: Función para restablecer contraseña
+  const resetPassword = async (token, newPassword) => {
+    try {
+      const response = await axios.post('http://localhost:3001/api/auth/reset-password', {
+        token,
+        newPassword
+      });
+      
+      return { 
+        success: true, 
+        message: response.data.message || 'Contraseña restablecida exitosamente' 
+      };
+    } catch (error) {
+      throw new Error(error.response?.data?.message || 'Error al restablecer la contraseña');
+    }
+  };
+
   return (
     <AuthContext.Provider 
       value={{ 
@@ -120,7 +158,9 @@ export const AuthProvider = ({ children }) => {
         register, 
         logout,
         loading,
-        updateUserProfile // ✨ Nueva función disponible
+        updateUserProfile, // ✨ Nueva función disponible
+        forgotPassword,    // ✨ Nueva función para recuperar contraseña
+        resetPassword      // ✨ Nueva función para restablecer contraseña
       }}
     >
       {!loading && children}

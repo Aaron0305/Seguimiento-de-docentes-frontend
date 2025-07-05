@@ -1,4 +1,4 @@
-import React, { useState, useContext, useEffect } from 'react';
+import React, { useState, useContext } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { AuthContext } from '../../contexts/AuthContext';
 import {
@@ -10,7 +10,6 @@ import {
   Box,
   Alert,
   InputAdornment,
-  IconButton,
   CircularProgress,
   ThemeProvider,
   Grow,
@@ -18,17 +17,14 @@ import {
   Fade
 } from '@mui/material';
 import {
-  Visibility,
-  VisibilityOff,
   Email,
-  Lock,
-  KeyboardArrowRight
+  ArrowBack,
+  Send
 } from '@mui/icons-material';
 import { theme } from '../../theme/palette';
-import ForgotPasswordLink from './ForgotPasswordLink';
 
 // Componente de campo de entrada animado
-const AnimatedTextField = ({ label, type, value, onChange, icon, endAdornment, ...props }) => {
+const AnimatedTextField = ({ label, type, value, onChange, icon, ...props }) => {
   return (
     <Grow in={true} style={{ transformOrigin: '0 0 0' }} timeout={700}>
       <TextField
@@ -44,7 +40,6 @@ const AnimatedTextField = ({ label, type, value, onChange, icon, endAdornment, .
               {icon}
             </InputAdornment>
           ),
-          endAdornment: endAdornment,
           sx: {
             '&:hover': {
               '& .MuiOutlinedInput-notchedOutline': {
@@ -77,62 +72,62 @@ const AnimatedTextField = ({ label, type, value, onChange, icon, endAdornment, .
   );
 };
 
-export default function Login() {
+export default function ForgotPassword() {
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
+  const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
   
-  // Obtenemos currentUser del contexto para verificar si ya hay una sesión activa
-  const { login, currentUser } = useContext(AuthContext);
+  const { forgotPassword } = useContext(AuthContext);
   const navigate = useNavigate();
-  
-  // Redirigir si ya hay una sesión activa
-  useEffect(() => {
-    if (currentUser) {
-      navigate('/', { replace: true });
-    }
-  }, [currentUser, navigate]);
-
-  const handleShowPassword = () => {
-    setShowPassword(!showPassword);
-  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError('');
-    setSuccess(false);
+    setSuccess('');
 
     // Validación básica
-    if (!email || !password) {
-      setError('Por favor ingresa tu correo y contraseña');
+    if (!email) {
+      setError('Por favor ingresa tu correo electrónico');
+      setLoading(false);
+      return;
+    }
+
+    // Validación del formato de email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      setError('Por favor ingresa un correo electrónico válido');
       setLoading(false);
       return;
     }
 
     try {
-      // login debe lanzar error si falla, o devolver usuario/token si es correcto
-      const result = await login(email, password);
-      if (result) {
-        setSuccess(true);
+      console.log('🔄 Enviando solicitud de recuperación para:', email);
+      const result = await forgotPassword(email);
+      console.log('✅ Respuesta recibida:', result);
+      
+      if (result.success) {
+        setSuccess(result.message);
         setTimeout(() => {
-          navigate('/', { replace: true });
-        }, 1000);
-      } else {
-        setError('Usuario o contraseña incorrectos');
+          navigate('/login', { replace: true });
+        }, 5000);
       }
     } catch (err) {
-      // Mejor manejo del error
-      let msg = 'Usuario o contraseña incorrectos';
-      if (err && err.response && err.response.data && err.response.data.message) {
-        msg = err.response.data.message;
-      } else if (err && err.message) {
-        msg = err.message;
+      console.error('❌ Error en recuperación:', err);
+      
+      // Manejo específico de diferentes tipos de errores
+      if (err.message.includes('Demasiadas solicitudes') || err.message.includes('límite')) {
+        setError('Has excedido el límite de solicitudes. Por favor espera antes de intentar nuevamente.');
+      } else if (err.message.includes('Network Error') || err.message.includes('ECONNREFUSED')) {
+        setError('No se puede conectar con el servidor. Verifica que esté ejecutándose.');
+      } else if (err.message.includes('404')) {
+        setError('La ruta de recuperación no está disponible en el servidor.');
+      } else if (err.message.includes('500')) {
+        setError('Error interno del servidor. Contacta al administrador.');
+      } else {
+        setError(err.message || 'Error al procesar la solicitud. Verifica tu conexión e inténtalo nuevamente.');
       }
-      setError(msg);
     } finally {
       setLoading(false);
     }
@@ -193,7 +188,7 @@ export default function Login() {
               <Fade in={true} timeout={1000}>
                 <Typography 
                   variant="h4" 
-                  component="body1" 
+                  component="h1" 
                   gutterBottom
                   sx={{ 
                     fontWeight: 600,
@@ -201,12 +196,12 @@ export default function Login() {
                     textShadow: '0px 2px 4px rgb(0, 0, 0)'
                   }}
                 >
-                  Bienvenido
+                  Recuperar Contraseña
                 </Typography>
               </Fade>
               <Fade in={true} timeout={1500}>
                 <Typography variant="body1" sx={{ opacity: 0.9 }}>
-                  Inicia sesión para continuar
+                  Ingresa tu correo electrónico para recibir un enlace de recuperación
                 </Typography>
               </Fade>
             </Box>
@@ -241,7 +236,7 @@ export default function Login() {
               )}
 
               {success && (
-                <Grow in={success} timeout={500}>
+                <Grow in={!!success} timeout={500}>
                   <Alert 
                     severity="success" 
                     variant="filled"
@@ -255,7 +250,7 @@ export default function Login() {
                       }
                     }}
                   >
-                    Iniciando sesión correctamente...
+                    {success}
                   </Alert>
                 </Grow>
               )}
@@ -267,35 +262,10 @@ export default function Login() {
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 icon={<Email sx={{ color: theme.palette.primary.main }} />}
+                disabled={loading || success}
               />
 
-              <AnimatedTextField
-                label="Contraseña"
-                type={showPassword ? 'text' : 'password'}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                icon={<Lock sx={{ color: theme.palette.primary.main }} />}
-                endAdornment={
-                  <InputAdornment position="end">
-                    <IconButton
-                      aria-label="toggle password visibility"
-                      onClick={handleShowPassword}
-                      edge="end"
-                      sx={{
-                        color: showPassword ? theme.palette.secondary.main : 'inherit',
-                        transition: 'color 0.3s ease'
-                      }}
-                    >
-                      {showPassword ? <VisibilityOff /> : <Visibility />}
-                    </IconButton>
-                  </InputAdornment>
-                }
-              />
-
-              <ForgotPasswordLink />
-
-              <Zoom in={true} style={{ transitionDelay: '600ms' }}>
+              <Zoom in={true} style={{ transitionDelay: '400ms' }}>
                 <Button
                   type="submit"
                   fullWidth
@@ -303,7 +273,7 @@ export default function Login() {
                   size="large"
                   disableElevation
                   disabled={loading || success}
-                  endIcon={loading ? null : <KeyboardArrowRight />}
+                  endIcon={loading ? null : <Send />}
                   sx={{
                     py: 1.5,
                     fontSize: '1rem',
@@ -326,43 +296,29 @@ export default function Login() {
                   {loading ? (
                     <CircularProgress size={24} sx={{ color: '#fff' }} />
                   ) : (
-                    'Iniciar Sesión'
+                    'Enviar Enlace de Recuperación'
                   )}
                 </Button>
               </Zoom>
 
-              <Fade in={true} style={{ transitionDelay: '900ms' }}>
+              <Fade in={true} style={{ transitionDelay: '600ms' }}>
                 <Box sx={{ textAlign: 'center', mt: 4 }}>
-                  <Typography variant="body1">
-                    ¿No tienes cuenta?{' '}
-                    <Link to="/register" style={{ textDecoration: 'none' }}>
-                      <Typography 
-                        component="span" 
-                        fontWeight="bold" 
-                        sx={{ 
-                          color: '#041c6c',
-                          position: 'relative',
-                          '&:hover': {
-                            '&::after': {
-                              width: '100%',
-                            }
-                          },
-                          '&::after': {
-                            content: '""',
-                            position: 'absolute',
-                            bottom: '-2px',
-                            left: 0,
-                            width: '0%',
-                            height: '2px',
-                            backgroundColor: '#041c6c',
-                            transition: 'width 0.3s ease'
-                          }
-                        }}
-                      >
-                        Regístrate
-                      </Typography>
-                    </Link>
-                  </Typography>
+                  <Link to="/login" style={{ textDecoration: 'none' }}>
+                    <Button
+                      variant="text"
+                      startIcon={<ArrowBack />}
+                      sx={{
+                        color: theme.palette.primary.main,
+                        '&:hover': {
+                          backgroundColor: 'rgba(4, 28, 108, 0.1)',
+                          color: theme.palette.primary.dark
+                        },
+                        transition: 'all 0.3s ease'
+                      }}
+                    >
+                      Volver al inicio de sesión
+                    </Button>
+                  </Link>
                 </Box>
               </Fade>
             </Box>

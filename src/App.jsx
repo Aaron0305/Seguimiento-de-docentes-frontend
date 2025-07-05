@@ -6,6 +6,8 @@ import { AuthProvider } from './contexts/AuthContext';
 import Navbar from './components/Layout/Navbar';
 import Login from './components/Auth/Login';
 import Register from './components/Auth/Register';
+import ForgotPassword from './components/Auth/ForgotPassword';
+import ResetPassword from './components/Auth/ResetPassword';
 import ActiveSession from './components/dashboard/ActiveSession';
 import { theme } from './theme/palette';
 import AdminAccessDialog from './components/Admin/AdminAccessDialog';
@@ -26,6 +28,8 @@ function App() {
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
             <Route path='/admin-access' element={<AdminAccessDialog />} />
             <Route path='/admin-structure' element={<Structure />} />
             <Route path="/dashboard" element={ <PrivateRoute> <ActiveSession /> </PrivateRoute> } />
