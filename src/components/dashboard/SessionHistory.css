@@ -1,0 +1,81 @@
+/* Estilos para la visualización de evidencias en el historial */
+.evidencias-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 15px;
+  margin-top: 10px;
+}
+
+.evidencia-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  background-color: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.evidencia-item:hover {
+  background-color: #e9ecef;
+  transform: translateY(-2px);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.evidencia-icon {
+  font-size: 24px;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #fff;
+  border-radius: 4px;
+  border: 1px solid #dee2e6;
+}
+
+.evidencia-info {
+  flex: 1;
+}
+
+.evidencia-nombre {
+  font-size: 14px;
+  font-weight: 500;
+  color: #212529;
+  margin-bottom: 4px;
+  word-break: break-word;
+}
+
+.evidencia-download {
+  display: inline-block;
+  padding: 4px 8px;
+  background-color: #007bff;
+  color: white !important;
+  text-decoration: none;
+  border-radius: 4px;
+  font-size: 12px;
+  transition: background-color 0.2s ease;
+}
+
+.evidencia-download:hover {
+  background-color: #0056b3;
+  text-decoration: none !important;
+}
+
+.registro-descripcion {
+  margin: 15px 0;
+  padding: 15px;
+  background-color: #f8f9fa;
+  border-radius: 4px;
+  border: 1px solid #dee2e6;
+}
+
+.registro-evidencias {
+  margin-top: 20px;
+}
+
+.registro-evidencias h4 {
+  margin-bottom: 10px;
+  color: #495057;
+}
