@@ -4,6 +4,7 @@ import { Edit, Delete, Menu as MenuIcon, Close as CloseIcon, PersonAdd, Refresh,
 import Drawer from '@mui/material/Drawer';
 import { styled, keyframes } from '@mui/material/styles';
 import Asignation from './Asignation';
+import AuthDebugger from '../Debug/AuthDebugger';
 
 // Animaciones personalizadas
 const pulse = keyframes`
@@ -280,6 +281,9 @@ export default function Structure() {
 
     return (
         <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', bgcolor: '#f8fafc' }}>
+            {/* Debugger de autenticación */}
+            <AuthDebugger />
+            
             {/* Contenido principal */}
             <Box sx={{ 
                 flex: 1, 

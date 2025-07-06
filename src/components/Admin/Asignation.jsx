@@ -120,8 +120,23 @@ export default function Asignation({ open, onClose, users }) {
             }
 
             const token = localStorage.getItem('token');
+            const user = localStorage.getItem('user');
+            console.log('🔍 Token encontrado:', token ? 'Sí' : 'No');
+            console.log('🔍 Usuario en localStorage:', user ? 'Sí' : 'No');
+            console.log('🔍 Longitud del token:', token ? token.length : 0);
+            
+            if (user) {
+                try {
+                    const userData = JSON.parse(user);
+                    console.log('👤 Datos del usuario:', userData);
+                    console.log('🔑 Rol del usuario:', userData.role);
+                } catch (e) {
+                    console.error('❌ Error parsing user data:', e);
+                }
+            }
+            
             if (!token) {
-                throw new Error('No se encontró el token de autenticación');
+                throw new Error('No se encontró el token de autenticación. Por favor, inicia sesión nuevamente.');
             }
 
             const formData = new FormData();
@@ -144,6 +159,15 @@ export default function Asignation({ open, onClose, users }) {
                 });
             }
 
+            console.log('📤 Enviando datos:', {
+                title: form.title,
+                description: form.description,
+                dueDate: form.dueDate,
+                isGeneral: form.isGeneral,
+                assignedTo: form.assignedTo,
+                attachments: form.attachments.length
+            });
+
             const response = await fetch('http://localhost:3001/api/assignments', {
                 method: 'POST',
                 headers: {
@@ -152,22 +176,35 @@ export default function Asignation({ open, onClose, users }) {
                 body: formData
             });
 
+            console.log('📥 Respuesta del servidor:', response.status, response.statusText);
+            
             const data = await response.json();
+            console.log('📥 Datos de respuesta:', data);
             
             if (!response.ok) {
-                throw new Error(data.error || 'Error al crear la asignación');
+                throw new Error(data.error || data.message || 'Error al crear la asignación');
             }
 
             setSuccess(true);
             setTimeout(() => {
                 handleClose();
                 // Opcional: Recargar la lista de asignaciones
-                window.location.reload();
+                if (window.location.pathname.includes('/admin')) {
+                    window.location.reload();
+                }
             }, 1500);
 
         } catch (err) {
             console.error('Error al crear asignación:', err);
-            setError(err.message || 'Error al crear la asignación');
+            
+            // Si el error es de autenticación, mostrar mensaje específico
+            if (err.message.includes('token') || err.message.includes('autenticación')) {
+                setError('Sesión expirada. Por favor, inicia sesión nuevamente.');
+                // NO redirigir automáticamente, dejar que el usuario decida
+                console.log('🔄 Para continuar, cierra este diálogo y vuelve a hacer login');
+            } else {
+                setError(err.message || 'Error al crear la asignación');
+            }
         } finally {
             setLoading(false);
         }
