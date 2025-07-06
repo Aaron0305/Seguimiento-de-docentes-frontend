@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
     Dialog,
     DialogTitle,
@@ -17,6 +17,7 @@ import {
     Chip,
     IconButton,
     Alert,
+    CircularProgress
 } from '@mui/material';
 import { Close as CloseIcon, AttachFile, Delete } from '@mui/icons-material';
 import { styled } from '@mui/material/styles';
@@ -46,6 +47,7 @@ export default function Asignation({ open, onClose, users }) {
     });
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
+    const [success, setSuccess] = useState(false);
 
     const handleChange = (e) => {
         const { name, value } = e.target;
@@ -78,53 +80,94 @@ export default function Asignation({ open, onClose, users }) {
         }));
     };
 
+    const resetForm = () => {
+        setForm({
+            title: '',
+            description: '',
+            dueDate: '',
+            isGeneral: false,
+            assignedTo: [],
+            attachments: []
+        });
+        setError('');
+        setSuccess(false);
+    };
+
+    const handleClose = () => {
+        resetForm();
+        onClose();
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         setLoading(true);
         setError('');
+        setSuccess(false);
 
         try {
+            // Validaciones
+            if (!form.title.trim()) {
+                throw new Error('El título es requerido');
+            }
+            if (!form.description.trim()) {
+                throw new Error('La descripción es requerida');
+            }
+            if (!form.dueDate) {
+                throw new Error('La fecha de entrega es requerida');
+            }
+            if (!form.isGeneral && (!form.assignedTo || form.assignedTo.length === 0)) {
+                throw new Error('Debe seleccionar al menos un docente para asignaciones individuales');
+            }
+
+            const token = localStorage.getItem('token');
+            if (!token) {
+                throw new Error('No se encontró el token de autenticación');
+            }
+
             const formData = new FormData();
-            formData.append('title', form.title);
-            formData.append('description', form.description);
-            formData.append('dueDate', form.dueDate);
+            formData.append('title', form.title.trim());
+            formData.append('description', form.description.trim());
+            formData.append('dueDate', new Date(form.dueDate).toISOString());
             formData.append('isGeneral', form.isGeneral);
             
-            if (!form.isGeneral) {
+            // Si no es general, agregar los docentes seleccionados
+            if (!form.isGeneral && form.assignedTo.length > 0) {
                 form.assignedTo.forEach(userId => {
                     formData.append('assignedTo[]', userId);
                 });
             }
 
-            form.attachments.forEach(file => {
-                formData.append('attachments', file);
-            });
+            // Agregar archivos adjuntos si existen
+            if (form.attachments.length > 0) {
+                form.attachments.forEach(file => {
+                    formData.append('attachments', file);
+                });
+            }
 
             const response = await fetch('http://localhost:3001/api/assignments', {
                 method: 'POST',
                 headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    'Authorization': `Bearer ${token}`
                 },
                 body: formData
             });
 
             const data = await response.json();
-
+            
             if (!response.ok) {
                 throw new Error(data.error || 'Error al crear la asignación');
             }
 
-            onClose();
-            setForm({
-                title: '',
-                description: '',
-                dueDate: '',
-                isGeneral: false,
-                assignedTo: [],
-                attachments: []
-            });
+            setSuccess(true);
+            setTimeout(() => {
+                handleClose();
+                // Opcional: Recargar la lista de asignaciones
+                window.location.reload();
+            }, 1500);
+
         } catch (err) {
-            setError(err.message);
+            console.error('Error al crear asignación:', err);
+            setError(err.message || 'Error al crear la asignación');
         } finally {
             setLoading(false);
         }
@@ -133,7 +176,7 @@ export default function Asignation({ open, onClose, users }) {
     return (
         <Dialog 
             open={open} 
-            onClose={onClose}
+            onClose={handleClose}
             maxWidth="md"
             fullWidth
             PaperProps={{
@@ -150,8 +193,8 @@ export default function Asignation({ open, onClose, users }) {
                 bgcolor: 'primary.main',
                 color: 'white'
             }}>
-                <Typography variant="h6">Nueva Asignación</Typography>
-                <IconButton onClick={onClose} sx={{ color: 'white' }}>
+                <Box component="span" sx={{ typography: 'h6' }}>Nueva Asignación</Box>
+                <IconButton onClick={handleClose} sx={{ color: 'white' }}>
                     <CloseIcon />
                 </IconButton>
             </DialogTitle>
@@ -161,6 +204,12 @@ export default function Asignation({ open, onClose, users }) {
                     {error && (
                         <Alert severity="error" sx={{ mb: 2 }}>
                             {error}
+                        </Alert>
+                    )}
+
+                    {success && (
+                        <Alert severity="success" sx={{ mb: 2 }}>
+                            Asignación creada exitosamente
                         </Alert>
                     )}
 
@@ -227,7 +276,7 @@ export default function Asignation({ open, onClose, users }) {
                                             return (
                                                 <Chip 
                                                     key={value} 
-                                                    label={user ? user.nombreCompleto : value}
+                                                    label={user ? `${user.nombre} ${user.apellidoPaterno}` : value}
                                                     size="small"
                                                 />
                                             );
@@ -237,7 +286,7 @@ export default function Asignation({ open, onClose, users }) {
                             >
                                 {users.map((user) => (
                                     <MenuItem key={user._id} value={user._id}>
-                                        {user.nombreCompleto}
+                                        {`${user.nombre} ${user.apellidoPaterno} ${user.apellidoMaterno}`}
                                     </MenuItem>
                                 ))}
                             </Select>
@@ -245,9 +294,9 @@ export default function Asignation({ open, onClose, users }) {
                     )}
 
                     <Box sx={{ mb: 2 }}>
-                        <label htmlFor="file-input">
+                        <label htmlFor="attachment-files">
                             <Input
-                                id="file-input"
+                                id="attachment-files"
                                 type="file"
                                 multiple
                                 onChange={handleFileChange}
@@ -279,13 +328,17 @@ export default function Asignation({ open, onClose, users }) {
                 </DialogContent>
 
                 <DialogActions sx={{ p: 3 }}>
-                    <Button onClick={onClose} variant="outlined">
+                    <Button 
+                        onClick={handleClose}
+                        disabled={loading}
+                    >
                         Cancelar
                     </Button>
-                    <Button 
-                        type="submit" 
+                    <Button
+                        type="submit"
                         variant="contained"
                         disabled={loading}
+                        startIcon={loading && <CircularProgress size={20} />}
                     >
                         {loading ? 'Creando...' : 'Crear Asignación'}
                     </Button>

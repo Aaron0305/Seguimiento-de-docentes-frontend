@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { Box, Typography, Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, IconButton, Dialog, DialogTitle, DialogContent, DialogActions, TextField, CircularProgress, Avatar, Chip, Card, CardContent, Grid, Fade, Slide, Zoom } from '@mui/material';
+import { Box, Typography, Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, IconButton, Dialog, DialogTitle, DialogContent, DialogActions, TextField, CircularProgress, Avatar, Chip, Card, CardContent, Grid, Fade, Slide, Zoom, InputAdornment } from '@mui/material';
 import { Edit, Delete, Menu as MenuIcon, Close as CloseIcon, PersonAdd, Refresh, Search, FilterList, Visibility, MoreVert, Assignment } from '@mui/icons-material';
 import Drawer from '@mui/material/Drawer';
 import { styled, keyframes } from '@mui/material/styles';
@@ -99,6 +99,7 @@ export default function Structure() {
     const [fechaSeleccionada, setFechaSeleccionada] = useState(null);
     const [reporteDrawerOpen, setReporteDrawerOpen] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
+    const [searchFocused, setSearchFocused] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
     const [asignationOpen, setAsignationOpen] = useState(false);
 
@@ -142,15 +143,26 @@ export default function Structure() {
         fetchUsers();
     }, [fetchUsers]);
 
-    // Función de búsqueda optimizada
+    // Función de búsqueda mejorada
     const filteredUsers = useMemo(() => {
-        if (!searchTerm) return users;
-        return users.filter(user => 
-            user.nombreCompleto?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            user.numeroControl?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            user.carrera?.toLowerCase().includes(searchTerm.toLowerCase())
-        );
+        if (!searchTerm.trim()) return users;
+        
+        const searchTerms = searchTerm.toLowerCase().trim().split(/\s+/);
+        
+        return users.filter(user => {
+            const searchableFields = [
+                user.nombreCompleto,
+                user.numeroControl,
+                user.email,
+                user.carrera,
+                user.semestre,
+                user.grupo
+            ].map(field => String(field || '').toLowerCase());
+            
+            return searchTerms.every(term =>
+                searchableFields.some(field => field.includes(term))
+            );
+        });
     }, [users, searchTerm]);
 
     // Memoizar los detalles del estudiante
@@ -222,6 +234,49 @@ export default function Structure() {
     const handleCloseAsignation = useCallback(() => {
         setAsignationOpen(false);
     }, []);
+
+    // Componente de búsqueda mejorado
+    const SearchBox = () => (
+        <Box sx={{ mb: 3, mt: 2 }}>
+            <TextField
+                fullWidth
+                placeholder="Buscar por nombre, número de control, email o carrera..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                onFocus={() => setSearchFocused(true)}
+                onBlur={() => setSearchFocused(false)}
+                InputProps={{
+                    startAdornment: (
+                        <InputAdornment position="start">
+                            <Search color={searchFocused ? "primary" : "action"} />
+                        </InputAdornment>
+                    ),
+                    endAdornment: searchTerm && (
+                        <InputAdornment position="end">
+                            <IconButton size="small" onClick={() => setSearchTerm('')}>
+                                <CloseIcon />
+                            </IconButton>
+                        </InputAdornment>
+                    ),
+                    sx: {
+                        borderRadius: 2,
+                        transition: 'all 0.3s ease',
+                        '&:hover': {
+                            backgroundColor: 'rgba(0, 0, 0, 0.02)',
+                        },
+                        ...(searchFocused && {
+                            boxShadow: '0 0 0 2px rgba(25, 118, 210, 0.2)',
+                        }),
+                    }
+                }}
+            />
+            {searchTerm && (
+                <Typography variant="caption" sx={{ mt: 1, display: 'block', color: 'text.secondary' }}>
+                    {filteredUsers.length} resultado{filteredUsers.length !== 1 ? 's' : ''} encontrado{filteredUsers.length !== 1 ? 's' : ''}
+                </Typography>
+            )}
+        </Box>
+    );
 
     return (
         <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', bgcolor: '#f8fafc' }}>
@@ -312,59 +367,7 @@ export default function Structure() {
                     </HeaderBox>
                 </Fade>
 
-                {/* Controles de búsqueda */}
-                <Slide direction="up" in={true} timeout={800}>
-                    <StyledCard sx={{ 
-                        mb: 4,
-                        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.05)',
-                        borderRadius: '12px',
-                    }}>
-                        <CardContent sx={{ py: 3 }}>
-                            <Box sx={{ 
-                                display: 'flex', 
-                                gap: 2, 
-                                alignItems: 'center', 
-                                flexWrap: 'wrap',
-                                px: 2
-                            }}>
-                                <TextField
-                                    placeholder="Buscar por nombre, número de control, email o carrera..."
-                                    variant="outlined"
-                                    size="medium"
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                    sx={{ 
-                                        flexGrow: 1, 
-                                        minWidth: 300,
-                                        '& .MuiOutlinedInput-root': {
-                                            borderRadius: '12px',
-                                            backgroundColor: 'white',
-                                            '&:hover': {
-                                                '& .MuiOutlinedInput-notchedOutline': {
-                                                    borderColor: '#1976d2',
-                                                },
-                                            },
-                                        },
-                                    }}
-                                    InputProps={{
-                                        startAdornment: <Search sx={{ color: 'text.secondary', mr: 1 }} />,
-                                    }}
-                                />
-                                <Chip 
-                                    label={`${filteredUsers.length} usuarios`} 
-                                    color="primary" 
-                                    sx={{ 
-                                        fontWeight: 'bold',
-                                        px: 2,
-                                        height: '40px',
-                                        borderRadius: '20px',
-                                        backgroundColor: '#1976d2',
-                                    }}
-                                />
-                            </Box>
-                        </CardContent>
-                    </StyledCard>
-                </Slide>
+                <SearchBox />
 
                 {/* Tabla de usuarios */}
                 <Zoom in={true} timeout={1000}>
@@ -548,143 +551,6 @@ export default function Structure() {
                     <Typography variant="subtitle2" sx={{ mb: 1, mt: 1, fontWeight: 'bold', color: '#4fc3f7' }}>
                         GESTIÓN DE DOCENTES
                     </Typography>
-                    
-                    <GlowButton 
-                        startIcon={<PersonAdd />}
-                        fullWidth 
-                        variant="contained"
-                        sx={{ justifyContent: 'flex-start', mb: 1.5, py: 1.2 }}
-                        onClick={() => handleOpenDialog()}
-                    >
-                        Dar de Alta Docente
-                    </GlowButton>
-
-                    <Button 
-                        startIcon={<Delete />}
-                        fullWidth 
-                        variant="outlined"
-                        sx={{ 
-                            justifyContent: 'flex-start', 
-                            mb: 1.5, 
-                            py: 1.2,
-                            borderColor: 'rgba(244, 67, 54, 0.5)',
-                            color: '#f44336',
-                            '&:hover': {
-                                borderColor: '#f44336',
-                                backgroundColor: 'rgba(244, 67, 54, 0.1)',
-                            },
-                        }}
-                        onClick={() => setMobileDrawerOpen(false)}
-                    >
-                        Dar de Baja Docente
-                    </Button>
-
-                    <Button 
-                        startIcon={<Edit />}
-                        fullWidth 
-                        variant="outlined"
-                        sx={{ 
-                            justifyContent: 'flex-start', 
-                            mb: 2, 
-                            py: 1.2,
-                            borderColor: 'rgba(255, 255, 255, 0.3)',
-                            color: 'white',
-                            '&:hover': {
-                                borderColor: 'white',
-                                backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                            },
-                        }}
-                        onClick={() => setMobileDrawerOpen(false)}
-                    >
-                        Nueva Contraseña de Docente
-                    </Button>
-
-                    {/* Reportes y Administración */}
-                    <Typography variant="subtitle2" sx={{ mb: 1, mt: 2, fontWeight: 'bold', color: '#4fc3f7' }}>
-                        REPORTES Y ADMINISTRACIÓN
-                    </Typography>
-
-                    <Button 
-                        fullWidth 
-                        variant="outlined"
-                        sx={{ 
-                            justifyContent: 'flex-start', 
-                            mb: 1.5, 
-                            py: 1.2,
-                            borderColor: 'rgba(255, 255, 255, 0.3)',
-                            color: 'white',
-                            '&:hover': {
-                                borderColor: 'white',
-                                backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                            },
-                        }}
-                        onClick={handleOpenReporteHoras}
-                    >
-                        📊 Reportes de Horas
-                    </Button>
-
-                    <Button 
-                        fullWidth 
-                        variant="outlined"
-                        sx={{ 
-                            justifyContent: 'flex-start', 
-                            mb: 1.5, 
-                            py: 1.2,
-                            borderColor: 'rgba(255, 255, 255, 0.3)',
-                            color: 'white',
-                            '&:hover': {
-                                borderColor: 'white',
-                                backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                            },
-                        }}
-                        onClick={() => setMobileDrawerOpen(false)}
-                    >
-                        📈 Estadísticas
-                    </Button>
-
-                    <Button 
-                        fullWidth 
-                        variant="outlined"
-                        sx={{ 
-                            justifyContent: 'flex-start', 
-                            mb: 1.5, 
-                            py: 1.2,
-                            borderColor: 'rgba(255, 255, 255, 0.3)',
-                            color: 'white',
-                            '&:hover': {
-                                borderColor: 'white',
-                                backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                            },
-                        }}
-                        onClick={() => setMobileDrawerOpen(false)}
-                    >
-                        📋 Lista de Asistencia
-                    </Button>
-
-                    <Button 
-                        fullWidth 
-                        variant="outlined"
-                        sx={{ 
-                            justifyContent: 'flex-start', 
-                            mb: 2, 
-                            py: 1.2,
-                            borderColor: 'rgba(255, 255, 255, 0.3)',
-                            color: 'white',
-                            '&:hover': {
-                                borderColor: 'white',
-                                backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                            },
-                        }}
-                        onClick={() => setMobileDrawerOpen(false)}
-                    >
-                        🏢 Gestión de Encargados
-                    </Button>
-
-                    {/* Gestión de Asignaciones */}
-                    <Typography variant="subtitle2" sx={{ mb: 1, mt: 2, fontWeight: 'bold', color: '#4fc3f7' }}>
-                        GESTIÓN DE ASIGNACIONES
-                    </Typography>
-
                     <Button
                         startIcon={<Assignment />}
                         fullWidth
@@ -703,86 +569,9 @@ export default function Structure() {
                         Nueva Asignación
                     </Button>
 
-                    {/* Configuración */}
-                    <Typography variant="subtitle2" sx={{ mb: 1, mt: 1, fontWeight: 'bold', color: '#4fc3f7' }}>
-                        CONFIGURACIÓN
-                    </Typography>
 
-                    <Button 
-                        fullWidth 
-                        variant="outlined"
-                        sx={{ 
-                            justifyContent: 'flex-start', 
-                            mb: 1.5, 
-                            py: 1.2,
-                            borderColor: 'rgba(255, 255, 255, 0.3)',
-                            color: 'white',
-                            '&:hover': {
-                                borderColor: 'white',
-                                backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                            },
-                        }}
-                        onClick={() => setMobileDrawerOpen(false)}
-                    >
-                        ⚙️ Configuración General
-                    </Button>
-
-                    <Button 
-                        fullWidth 
-                        variant="outlined"
-                        sx={{ 
-                            justifyContent: 'flex-start', 
-                            mb: 1.5, 
-                            py: 1.2,
-                            borderColor: 'rgba(255, 255, 255, 0.3)',
-                            color: 'white',
-                            '&:hover': {
-                                borderColor: 'white',
-                                backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                            },
-                        }}
-                        onClick={() => setMobileDrawerOpen(false)}
-                    >
-                        📤 Exportar Datos
-                    </Button>
-
-                    <Button 
-                        fullWidth 
-                        variant="outlined"
-                        sx={{ 
-                            justifyContent: 'flex-start', 
-                            mb: 2, 
-                            py: 1.2,
-                            borderColor: 'rgba(255, 255, 255, 0.3)',
-                            color: 'white',
-                            '&:hover': {
-                                borderColor: 'white',
-                                backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                            },
-                        }}
-                        onClick={() => setMobileDrawerOpen(false)}
-                    >
-                        🔔 Notificaciones
-                    </Button>
                     
                     <Box sx={{ flexGrow: 1 }} />
-                    
-                    <Button 
-                        fullWidth 
-                        variant="contained"
-                        sx={{ 
-                            justifyContent: 'flex-start', 
-                            mt: 'auto', 
-                            py: 1.5,
-                            background: 'linear-gradient(45deg, #f44336 30%, #d32f2f 90%)',
-                            '&:hover': {
-                                background: 'linear-gradient(45deg, #d32f2f 30%, #b71c1c 90%)',
-                            },
-                        }}
-                        onClick={() => setMobileDrawerOpen(false)}
-                    >
-                        🚪 Cerrar Sesión
-                    </Button>
                 </Box>
             </Drawer>
 
