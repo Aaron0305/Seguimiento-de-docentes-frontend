@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback, useContext } from 'react';
 import { AuthContext } from '../../contexts/AuthContext';
 import SessionHistory from './SessionHistory';
+import TeacherAssignments from './TeacherAssignments';
 import './ActiveSession.css'; 
 import { TextField } from '@mui/material';
 
@@ -48,6 +49,9 @@ const ActiveSession = () => {
   observaciones: '',
   evidencias: []
   });
+
+  // Estado para manejar pestañas
+  const [activeTab, setActiveTab] = useState('session'); // 'session' o 'assignments'
 
   const isActivityValid = () => {
     return currentActivity.titulo.trim() !== '' && 
@@ -790,6 +794,26 @@ const ActiveSession = () => {
         </div>
       )}
       
+      {/* Pestañas de navegación */}
+      <div className="tabs-container">
+        <div className="tabs-header">
+          <button
+            className={`tab-button ${activeTab === 'session' ? 'active' : ''}`}
+            onClick={() => setActiveTab('session')}
+          >
+            📊 Sesión Actual
+          </button>
+          <button
+            className={`tab-button ${activeTab === 'assignments' ? 'active' : ''}`}
+            onClick={() => setActiveTab('assignments')}
+          >
+            📋 Mis Asignaciones
+          </button>
+        </div>
+      </div>
+      
+      {/* Contenido de la pestaña activa */}
+      {activeTab === 'session' && (
       <div className="session-table-container">
         <div className="connection-status">
           <span className="status-dot"></span>
@@ -885,6 +909,14 @@ const ActiveSession = () => {
           </tbody>
         </table>
       </div>
+      )}
+
+      {/* Pestaña de Asignaciones */}
+      {activeTab === 'assignments' && (
+        <div className="assignments-container">
+          <TeacherAssignments />
+        </div>
+      )}
 
       {/* Diálogo de confirmación */}
       {openDialog && (

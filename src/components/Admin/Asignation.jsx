@@ -182,7 +182,14 @@ export default function Asignation({ open, onClose, users }) {
             console.log('📥 Datos de respuesta:', data);
             
             if (!response.ok) {
-                throw new Error(data.error || data.message || 'Error al crear la asignación');
+                // Crear un error con información completa
+                const error = new Error(data.error || data.message || 'Error al crear la asignación');
+                error.response = {
+                    status: response.status,
+                    statusText: response.statusText,
+                    data: data
+                };
+                throw error;
             }
 
             setSuccess(true);
@@ -197,10 +204,19 @@ export default function Asignation({ open, onClose, users }) {
         } catch (err) {
             console.error('Error al crear asignación:', err);
             
-            // Si el error es de autenticación, mostrar mensaje específico
-            if (err.message.includes('token') || err.message.includes('autenticación')) {
+            // Debug: mostrar todos los detalles del error
+            console.log('🔍 Detalles completos del error:');
+            console.log('  - Mensaje:', err.message);
+            console.log('  - Response status:', err.response?.status);
+            console.log('  - Response data:', err.response?.data);
+            console.log('  - Response headers:', err.response?.headers);
+            
+            // Si el error es de autenticación (status 401)
+            if (err.response?.status === 401) {
                 setError('Sesión expirada. Por favor, inicia sesión nuevamente.');
-                // NO redirigir automáticamente, dejar que el usuario decida
+                console.log('🔄 Para continuar, cierra este diálogo y vuelve a hacer login');
+            } else if (err.message.includes('Sesión') || err.message.includes('token') || err.message.includes('autenticación')) {
+                setError('Sesión expirada. Por favor, inicia sesión nuevamente.');
                 console.log('🔄 Para continuar, cierra este diálogo y vuelve a hacer login');
             } else {
                 setError(err.message || 'Error al crear la asignación');

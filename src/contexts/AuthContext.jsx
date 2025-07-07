@@ -1,11 +1,17 @@
 import React, { createContext, useState, useEffect } from 'react';
 import axios from 'axios';
+import setupAxiosInterceptors from '../utils/axiosDebugger';
 
 export const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  // Configurar interceptors de axios para debugging
+  useEffect(() => {
+    setupAxiosInterceptors();
+  }, []);
 
   const login = async (email, password) => {
     try {
