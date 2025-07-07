@@ -24,6 +24,8 @@ export const getTeacherAssignmentStats = async () => {
 // Obtener asignaciones del docente con filtros
 export const getTeacherAssignments = async (params = {}) => {
     try {
+        console.log('📤 getTeacherAssignments - Parámetros enviados:', params);
+        
         const queryParams = new URLSearchParams();
         
         if (params.status) queryParams.append('status', params.status);
@@ -34,12 +36,31 @@ export const getTeacherAssignments = async (params = {}) => {
         
         const url = `${BASE_URL}/assignments/teacher/assignments${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
         
+        console.log('🔗 URL construida:', url);
+        console.log('🔑 Headers:', getAuthHeaders());
+        
         const response = await axios.get(url, {
             headers: getAuthHeaders()
         });
+        
+        console.log('📥 Respuesta recibida:', {
+            success: response.data.success,
+            totalAsignaciones: response.data.assignments?.length || 0,
+            paginacion: response.data.pagination
+        });
+        
+        if (response.data.assignments?.length > 0) {
+            console.log('📝 Primeras asignaciones recibidas:');
+            response.data.assignments.slice(0, 3).forEach((assignment, index) => {
+                console.log(`   ${index + 1}. ${assignment.title} - ${assignment.status}`);
+            });
+        } else {
+            console.log('❌ No se recibieron asignaciones');
+        }
+        
         return response.data;
     } catch (error) {
-        console.error('Error obteniendo asignaciones del docente:', error);
+        console.error('❌ Error obteniendo asignaciones del docente:', error);
         throw error;
     }
 };
@@ -47,13 +68,41 @@ export const getTeacherAssignments = async (params = {}) => {
 // Marcar asignación como completada
 export const markAssignmentCompleted = async (assignmentId) => {
     try {
+        console.log('📤 Enviando petición para completar asignación:', assignmentId);
+        
         const response = await axios.patch(`${BASE_URL}/assignments/teacher/${assignmentId}/complete`, {}, {
             headers: getAuthHeaders()
         });
+        
+        console.log('📥 Respuesta recibida:', response.data);
         return response.data;
     } catch (error) {
-        console.error('Error marcando asignación como completada:', error);
-        throw error;
+        console.error('❌ Error en markAssignmentCompleted:', error);
+        
+        // Mejorar el manejo de errores
+        if (error.response) {
+            // El servidor respondió con un código de error
+            const errorData = error.response.data;
+            console.error('❌ Error del servidor:', errorData);
+            throw {
+                response: {
+                    data: errorData
+                },
+                message: errorData.error || 'Error del servidor'
+            };
+        } else if (error.request) {
+            // La petición se hizo pero no hubo respuesta
+            console.error('❌ No hay respuesta del servidor');
+            throw {
+                message: 'No se pudo conectar con el servidor'
+            };
+        } else {
+            // Algo más pasó al configurar la petición
+            console.error('❌ Error al configurar la petición:', error.message);
+            throw {
+                message: error.message || 'Error desconocido'
+            };
+        }
     }
 };
 

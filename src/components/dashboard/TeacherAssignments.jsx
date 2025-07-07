@@ -82,6 +82,8 @@ const TeacherAssignments = () => {
     const loadAssignments = async () => {
         try {
             setLoading(true);
+            setError(''); // Limpiar errores anteriores
+            
             const params = {
                 status: statusFilter,
                 search: searchTerm,
@@ -90,14 +92,28 @@ const TeacherAssignments = () => {
                 limit: 6
             };
 
+            console.log('🔄 TeacherAssignments - Cargando asignaciones con parámetros:', params);
+
             const response = await getTeacherAssignments(params);
+            
+            console.log('📥 TeacherAssignments - Respuesta completa:', response);
+            
             if (response.success) {
+                console.log('✅ Respuesta exitosa, actualizando estado con asignaciones:', response.assignments?.length || 0);
                 setAssignments(response.assignments || []);
                 setTotalPages(response.pagination?.totalPages || 1);
+                
+                // Log del estado después de actualizar
+                setTimeout(() => {
+                    console.log('📊 Estado actualizado - assignments.length:', assignments.length);
+                }, 100);
+            } else {
+                console.log('❌ Respuesta no exitosa:', response);
+                setError('La respuesta del servidor no fue exitosa');
             }
         } catch (error) {
-            console.error('Error cargando asignaciones:', error);
-            setError('Error al cargar las asignaciones');
+            console.error('❌ Error cargando asignaciones:', error);
+            setError('Error al cargar las asignaciones: ' + (error.message || 'Error desconocido'));
         } finally {
             setLoading(false);
         }
@@ -106,58 +122,165 @@ const TeacherAssignments = () => {
     const handleCompleteAssignment = async (assignmentId) => {
         try {
             setActionLoading(true);
+            setError(''); // Limpiar errores anteriores
+            
+            console.log('🔄 Marcando asignación como completada:', assignmentId);
+            
             const response = await markAssignmentCompleted(assignmentId);
+            
+            console.log('✅ Respuesta del servidor:', response);
+            
             if (response.success) {
+                console.log('✅ Asignación completada exitosamente');
                 await loadAssignments();
                 await loadStats();
                 setShowDetailDialog(false);
+                
+                // Mostrar mensaje de éxito
+                setError(''); // Limpiar cualquier error anterior
+            } else {
+                throw new Error(response.error || 'Error desconocido');
             }
         } catch (error) {
-            console.error('Error completando asignación:', error);
-            setError('Error al marcar como completada');
+            console.error('❌ Error completando asignación:', error);
+            const errorMessage = error.response?.data?.error || error.message || 'Error al marcar como completada';
+            setError(errorMessage);
         } finally {
             setActionLoading(false);
         }
     };
 
-    const getStatusColor = (status) => {
-        switch (status) {
-            case 'completed': return 'success';
-            case 'pending': return 'warning';
-            case 'overdue': return 'error';
-            default: return 'default';
-        }
+    const getStatusColor = (status, dueDate, closeDate) => {
+        if (status === 'completed') return 'success';
+        
+        const now = new Date();
+        const due = new Date(dueDate);
+        const close = new Date(closeDate);
+        
+        if (now > close) return 'error'; // Asignación cerrada
+        if (now > due) return 'warning'; // Vencida pero aún abierta
+        
+        // Próxima a vencer
+        const daysUntilDue = Math.ceil((due - now) / (1000 * 60 * 60 * 24));
+        if (daysUntilDue <= 1) return 'error'; // Vence hoy o mañana
+        if (daysUntilDue <= 3) return 'warning'; // Vence en 2-3 días
+        
+        return 'primary';
     };
 
-    const getStatusLabel = (status, dueDate) => {
+    const getStatusLabel = (status, dueDate, closeDate) => {
         if (status === 'completed') return 'Completada';
         if (status === 'pending') {
-            const isOverdue = new Date(dueDate) < new Date();
-            return isOverdue ? 'Vencida' : 'Pendiente';
+            const now = new Date();
+            const due = new Date(dueDate);
+            const close = new Date(closeDate);
+            
+            if (now > close) return 'Cerrada - No entregada';
+            if (now > due) return 'Vencida - Aún puede entregar';
+            
+            // Calcular tiempo restante
+            const daysUntilDue = Math.ceil((due - now) / (1000 * 60 * 60 * 24));
+            
+            if (daysUntilDue <= 0) {
+                return 'Vence hoy';
+            } else if (daysUntilDue === 1) {
+                return 'Vence mañana';
+            } else {
+                return `${daysUntilDue} días restantes`;
+            }
         }
         return status;
     };
 
     const formatDate = (dateString) => {
-        const date = new Date(dateString);
-        return date.toLocaleDateString('es-ES', {
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric'
-        });
+        try {
+            if (!dateString || dateString === 'Invalid Date') {
+                return 'Fecha no válida';
+            }
+            const date = new Date(dateString);
+            if (isNaN(date.getTime())) {
+                return 'Fecha no válida';
+            }
+            return date.toLocaleDateString('es-ES', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+            });
+        } catch (error) {
+            console.error('Error formateando fecha:', error);
+            return 'Fecha no válida';
+        }
     };
 
-    const formatTimeRemaining = (dueDate) => {
-        const now = new Date();
-        const due = new Date(dueDate);
-        const diffTime = due - now;
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        
-        if (diffDays < 0) return 'Vencida';
-        if (diffDays === 0) return 'Vence hoy';
-        if (diffDays === 1) return 'Vence mañana';
-        return `${diffDays} días restantes`;
+    const formatDateWithTime = (dateString) => {
+        try {
+            if (!dateString || dateString === 'Invalid Date') {
+                return 'Fecha no válida';
+            }
+            const date = new Date(dateString);
+            if (isNaN(date.getTime())) {
+                return 'Fecha no válida';
+            }
+            return date.toLocaleDateString('es-ES', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        } catch (error) {
+            console.error('Error formateando fecha con hora:', error);
+            return 'Fecha no válida';
+        }
     };
+
+    const formatTimeRemaining = (dueDate, closeDate) => {
+        try {
+            if (!dueDate || !closeDate) {
+                return 'Fechas no válidas';
+            }
+            
+            const now = new Date();
+            const due = new Date(dueDate);
+            const close = new Date(closeDate);
+            
+            // Verificar que las fechas sean válidas
+            if (isNaN(due.getTime()) || isNaN(close.getTime())) {
+                return 'Fechas no válidas';
+            }
+            
+            if (now > close) return 'Cerrada - No se puede entregar';
+            if (now > due) {
+                const diffTime = close - now;
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                if (diffDays < 0) return 'Cerrada';
+                if (diffDays === 0) return 'Cierra hoy - ¡Entrega tarde!';
+                return `${diffDays} días para cierre - Entrega tardía`;
+            }
+            
+            const diffTime = due - now;
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            
+            if (diffDays < 0) return 'Vencida';
+            if (diffDays === 0) return 'Vence hoy';
+            if (diffDays === 1) return 'Vence mañana';
+            return `${diffDays} días restantes`;
+        } catch (error) {
+            console.error('Error calculando tiempo restante:', error);
+            return 'Error en fechas';
+        }
+    };
+
+    // Log para debug - ver estado actual
+    console.log('🎨 TeacherAssignments - Renderizando con estado:', {
+        loading,
+        assignmentsLength: assignments.length,
+        error,
+        statusFilter,
+        searchTerm,
+        page,
+        totalPages
+    });
 
     if (loading && assignments.length === 0) {
         return (
@@ -318,8 +441,8 @@ const TeacherAssignments = () => {
                                                 {assignment.title}
                                             </Typography>
                                             <Chip
-                                                label={getStatusLabel(status, assignment.dueDate)}
-                                                color={getStatusColor(status)}
+                                                label={getStatusLabel(status, assignment.dueDate, assignment.closeDate)}
+                                                color={getStatusColor(status, assignment.dueDate, assignment.closeDate)}
                                                 size="small"
                                             />
                                         </Box>
@@ -334,7 +457,14 @@ const TeacherAssignments = () => {
                                         <Box display="flex" alignItems="center" mb={1}>
                                             <CalendarToday sx={{ fontSize: 16, mr: 1, color: 'text.secondary' }} />
                                             <Typography variant="body2" color="text.secondary">
-                                                Vence: {formatDate(assignment.dueDate)}
+                                                Vence: {formatDateWithTime(assignment.dueDate)}
+                                            </Typography>
+                                        </Box>
+
+                                        <Box display="flex" alignItems="center" mb={1}>
+                                            <CalendarToday sx={{ fontSize: 16, mr: 1, color: 'error.main' }} />
+                                            <Typography variant="body2" color="text.secondary">
+                                                Cierra: {formatDateWithTime(assignment.closeDate)}
                                             </Typography>
                                         </Box>
 
@@ -344,7 +474,7 @@ const TeacherAssignments = () => {
                                                 color={isOverdue ? 'error' : 'warning.main'}
                                                 sx={{ fontWeight: 'medium' }}
                                             >
-                                                {formatTimeRemaining(assignment.dueDate)}
+                                                {formatTimeRemaining(assignment.dueDate, assignment.closeDate)}
                                             </Typography>
                                         )}
 
@@ -366,15 +496,31 @@ const TeacherAssignments = () => {
                                         </Button>
                                         
                                         {assignment.status === 'pending' && (
-                                            <Button
-                                                size="small"
-                                                color="success"
-                                                startIcon={<Done />}
-                                                onClick={() => handleCompleteAssignment(assignment._id)}
-                                                disabled={actionLoading}
-                                            >
-                                                Completar
-                                            </Button>
+                                            (() => {
+                                                const now = new Date();
+                                                const closeDate = new Date(assignment.closeDate);
+                                                const isClosed = now > closeDate;
+                                                
+                                                return (
+                                                    <Button
+                                                        size="small"
+                                                        color={isClosed ? "error" : "success"}
+                                                        startIcon={<Done />}
+                                                        onClick={() => {
+                                                            if (isClosed) {
+                                                                setError('Esta asignación ya ha cerrado. No se pueden realizar entregas.');
+                                                                setTimeout(() => setError(''), 5000);
+                                                            } else {
+                                                                handleCompleteAssignment(assignment._id);
+                                                            }
+                                                        }}
+                                                        disabled={actionLoading}
+                                                        variant={isClosed ? "outlined" : "contained"}
+                                                    >
+                                                        {isClosed ? 'Cerrada' : 'Completar'}
+                                                    </Button>
+                                                );
+                                            })()
                                         )}
                                     </CardActions>
                                 </Card>
@@ -427,8 +573,8 @@ const TeacherAssignments = () => {
                         <DialogContent>
                             <Box mb={2}>
                                 <Chip
-                                    label={getStatusLabel(selectedAssignment.status, selectedAssignment.dueDate)}
-                                    color={getStatusColor(selectedAssignment.status)}
+                                    label={getStatusLabel(selectedAssignment.status, selectedAssignment.dueDate, selectedAssignment.closeDate)}
+                                    color={getStatusColor(selectedAssignment.status, selectedAssignment.dueDate, selectedAssignment.closeDate)}
                                 />
                             </Box>
                             
@@ -444,7 +590,15 @@ const TeacherAssignments = () => {
                                         Fecha de entrega
                                     </Typography>
                                     <Typography variant="body2">
-                                        {formatDate(selectedAssignment.dueDate)}
+                                        {formatDateWithTime(selectedAssignment.dueDate)}
+                                    </Typography>
+                                </Grid>
+                                <Grid item xs={6}>
+                                    <Typography variant="subtitle2" color="text.secondary">
+                                        Fecha de cierre
+                                    </Typography>
+                                    <Typography variant="body2" color="error.main">
+                                        {formatDateWithTime(selectedAssignment.closeDate)}
                                     </Typography>
                                 </Grid>
                                 <Grid item xs={6}>
@@ -453,6 +607,11 @@ const TeacherAssignments = () => {
                                     </Typography>
                                     <Typography variant="body2">
                                         {selectedAssignment.createdBy?.nombre} {selectedAssignment.createdBy?.apellidoPaterno}
+                                        {selectedAssignment.createdBy?.role && (
+                                            <Typography component="span" variant="caption" color="primary" sx={{ ml: 1 }}>
+                                                ({selectedAssignment.createdBy.role === 'admin' ? 'Administrador' : 'Docente'})
+                                            </Typography>
+                                        )}
                                     </Typography>
                                 </Grid>
                                 <Grid item xs={6}>
@@ -494,15 +653,33 @@ const TeacherAssignments = () => {
                         </DialogContent>
                         <DialogActions>
                             {selectedAssignment.status === 'pending' && (
-                                <Button
-                                    color="success"
-                                    variant="contained"
-                                    startIcon={<Done />}
-                                    onClick={() => handleCompleteAssignment(selectedAssignment._id)}
-                                    disabled={actionLoading}
-                                >
-                                    {actionLoading ? 'Completando...' : 'Marcar como completada'}
-                                </Button>
+                                (() => {
+                                    const now = new Date();
+                                    const dueDate = new Date(selectedAssignment.dueDate);
+                                    const closeDate = new Date(selectedAssignment.closeDate);
+                                    const isClosed = now > closeDate;
+                                    const isOverdue = now > dueDate && !isClosed;
+                                    
+                                    // Si la asignación está cerrada, no mostrar botón
+                                    if (isClosed) {
+                                        return null;
+                                    }
+                                    
+                                    return (
+                                        <Button
+                                            color={isOverdue ? "warning" : "success"}
+                                            variant="contained"
+                                            startIcon={<Done />}
+                                            onClick={() => handleCompleteAssignment(selectedAssignment._id)}
+                                            disabled={actionLoading}
+                                        >
+                                            {actionLoading 
+                                                ? 'Completando...' 
+                                                : (isOverdue ? 'Entregar con retraso' : 'Marcar como completada')
+                                            }
+                                        </Button>
+                                    );
+                                })()
                             )}
                             <Button onClick={() => setShowDetailDialog(false)}>
                                 Cerrar

@@ -41,6 +41,7 @@ export default function Asignation({ open, onClose, users }) {
         title: '',
         description: '',
         dueDate: '',
+        closeDate: '',
         isGeneral: false,
         assignedTo: [],
         attachments: []
@@ -85,6 +86,7 @@ export default function Asignation({ open, onClose, users }) {
             title: '',
             description: '',
             dueDate: '',
+            closeDate: '',
             isGeneral: false,
             assignedTo: [],
             attachments: []
@@ -115,6 +117,17 @@ export default function Asignation({ open, onClose, users }) {
             if (!form.dueDate) {
                 throw new Error('La fecha de entrega es requerida');
             }
+            if (!form.closeDate) {
+                throw new Error('La fecha de cierre es requerida');
+            }
+            
+            // Validar que la fecha de cierre sea posterior o igual a la fecha de entrega
+            const dueDate = new Date(form.dueDate);
+            const closeDate = new Date(form.closeDate);
+            if (closeDate < dueDate) {
+                throw new Error('La fecha de cierre debe ser posterior o igual a la fecha de entrega');
+            }
+            
             if (!form.isGeneral && (!form.assignedTo || form.assignedTo.length === 0)) {
                 throw new Error('Debe seleccionar al menos un docente para asignaciones individuales');
             }
@@ -143,6 +156,7 @@ export default function Asignation({ open, onClose, users }) {
             formData.append('title', form.title.trim());
             formData.append('description', form.description.trim());
             formData.append('dueDate', new Date(form.dueDate).toISOString());
+            formData.append('closeDate', new Date(form.closeDate).toISOString());
             formData.append('isGeneral', form.isGeneral);
             
             // Si no es general, agregar los docentes seleccionados
@@ -290,7 +304,7 @@ export default function Asignation({ open, onClose, users }) {
 
                     <TextField
                         name="dueDate"
-                        label="Fecha de Entrega"
+                        label="Fecha de Entrega (Límite a Tiempo)"
                         type="datetime-local"
                         value={form.dueDate}
                         onChange={handleChange}
@@ -300,6 +314,23 @@ export default function Asignation({ open, onClose, users }) {
                             shrink: true,
                         }}
                         sx={{ mb: 2 }}
+                        helperText="Fecha límite para entrega a tiempo. Después de esta fecha, las entregas se marcarán como 'con retraso'"
+                    />
+
+                    <TextField
+                        name="closeDate"
+                        label="Fecha de Cierre Definitiva"
+                        type="datetime-local"
+                        value={form.closeDate}
+                        onChange={handleChange}
+                        fullWidth
+                        required
+                        InputLabelProps={{
+                            shrink: true,
+                        }}
+                        sx={{ mb: 2 }}
+                        helperText="Fecha límite definitiva. Después de esta fecha NO se podrán realizar entregas y se enviará reporte de mal desempeño"
+                        error={form.closeDate && form.dueDate && new Date(form.closeDate) < new Date(form.dueDate)}
                     />
 
                     <FormControlLabel
