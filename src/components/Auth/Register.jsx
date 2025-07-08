@@ -21,7 +21,11 @@ import {
   Step,
   StepLabel,
   Avatar,
-  Grid
+  Grid,
+  FormControl,
+  InputLabel,
+  Select,
+  FormHelperText
 } from '@mui/material';
 import {
   Visibility,
@@ -105,6 +109,7 @@ export default function Register() {
     apellidoPaterno: '',
     apellidoMaterno: '',
     carrera: '',
+    role: '',  // Quitamos el valor por defecto para que el usuario deba seleccionar
     email: '',
     password: '',
     confirmPassword: ''
@@ -157,9 +162,9 @@ export default function Register() {
   // Verificación de email al perder el foco
   const handleEmailBlur = async () => {
     if (formData.email.trim() !== '') {
-      const emailRegex = /^[0-9]{13,16}@tesjo\.edu\.mx$/;
+      const emailRegex = /^[a-zA-Z0-9._%+-]+@gmail\.com$/;
       if (!emailRegex.test(formData.email)) {
-        setError('Por favor, introduce un correo institucional válido (formato: xxxxxxxxx@tesjo.edu.mx)');
+        setError('Por favor, introduce un correo Gmail válido (ejemplo: usuario@gmail.com)');
         return;
       }
       try {
@@ -176,6 +181,11 @@ export default function Register() {
   // Verificación de número de control al perder el foco
   const handleNumeroControlBlur = async () => {
     if (formData.numeroControl.trim() !== '') {
+      const numeroControlRegex = /^[0-9]{8,10}$/;
+      if (!numeroControlRegex.test(formData.numeroControl)) {
+        setError('El número de control debe tener entre 8 y 10 dígitos');
+        return;
+      }
       try {
         const numeroControlExists = await checkNumeroControlExists(formData.numeroControl);
         if (numeroControlExists) {
@@ -197,25 +207,15 @@ export default function Register() {
 
   const handleNumeroControlChange = (e) => {
     const { value } = e.target;
-    const numeroControl = value.trim();
-    
-    // Validar longitud del número de control
-    if (numeroControl.length > 0) {
-      if (numeroControl.length < 13) {
-        setError('El número de control debe tener al menos 13 dígitos');
-      } else if (numeroControl.length > 16) {
-        setError('El número de control no debe exceder los 16 dígitos');
-        return; // No actualizar el estado si excede 16 dígitos
-      } else {
-        setError(''); // Limpiar error si la longitud es válida
-      }
+    // Solo permitir números
+    const numeroControl = value.replace(/[^0-9]/g, '');
+    if (numeroControl.length <= 10) {
+      setFormData({
+        ...formData,
+        numeroControl
+      });
+      setError('');
     }
-
-    setFormData({
-      ...formData,
-      numeroControl: numeroControl,
-      email: numeroControl ? `${numeroControl}@tesjo.edu.mx` : ''
-    });
   };
 
   const handleFotoChange = (event) => {
@@ -253,22 +253,13 @@ export default function Register() {
     setError('');
     
     try {
-      // Validaciones
-      if (!formData.numeroControl || !formData.nombre || !formData.apellidoPaterno || !formData.apellidoMaterno || !formData.carrera) {
-        throw new Error('Por favor, completa todos los campos obligatorios');
-      }
-
-      if (formData.password !== formData.confirmPassword) {
-        throw new Error('Las contraseñas no coinciden');
-      }
-
-      if (formData.password.length < 6) {
-        throw new Error('La contraseña debe tener al menos 6 caracteres');
+      if (!formData.role) {
+        throw new Error('Por favor selecciona un rol (Docente o Administrador)');
       }
 
       const formDataToSend = new FormData();
       
-      // Agregar todos los campos excepto confirmPassword
+      // Asegurarnos que el role se envía correctamente
       Object.keys(formData).forEach(key => {
         if (key !== 'confirmPassword') {
           formDataToSend.append(key, formData[key]);
@@ -281,10 +272,14 @@ export default function Register() {
         formDataToSend.append('fotoPerfil', foto, uniqueFileName);
       }
 
-      console.log('Enviando datos de registro:', Object.fromEntries(formDataToSend));
+      console.log('Datos de registro a enviar:', Object.fromEntries(formDataToSend));
       
       const response = await register(formDataToSend);
       console.log('Respuesta del registro:', response);
+      
+      if (!response.success) {
+        throw new Error(response.message || 'Error en el registro');
+      }
       
       setSuccess(true);
       setTimeout(() => navigate('/login'), 1500);
@@ -360,7 +355,11 @@ export default function Register() {
               onBlur={handleNumeroControlBlur}
               required
               icon={<Badge />}
-              inputProps={{ maxLength: 16 }}
+              inputProps={{
+                maxLength: 10,
+                pattern: '[0-9]*'
+              }}
+              helperText="Ingresa tu número de control (8-10 dígitos)"
             />
             <AnimatedTextField
               label="Nombre"
@@ -392,27 +391,44 @@ export default function Register() {
         return (
           <Box sx={{ mt: 2 }}>
             <AnimatedTextField
+              select
               label="Carrera"
               name="carrera"
               value={formData.carrera}
               onChange={handleChange}
               required
-              select
-              disabled={isLoadingCarreras}
               icon={<School />}
+              disabled={isLoadingCarreras}
             >
               {isLoadingCarreras ? (
                 <MenuItem disabled>Cargando carreras...</MenuItem>
-              ) : carreras.length > 0 ? (
-                carreras.map((carrera) => (
-                  <MenuItem key={carrera._id} value={carrera._id}>
-                    {carrera.nombre}
-                  </MenuItem>
-                ))
               ) : (
-                <MenuItem disabled>No hay carreras disponibles</MenuItem>
+                carreras
+                  .filter(carrera => carrera.nombre.toLowerCase().includes('sistemas'))
+                  .map((carrera) => (
+                    <MenuItem key={carrera._id} value={carrera._id}>
+                      {carrera.nombre}
+                    </MenuItem>
+                  ))
               )}
             </AnimatedTextField>
+
+            <FormControl fullWidth required sx={{ mt: 2 }}>
+              <InputLabel>Rol de Usuario</InputLabel>
+              <Select
+                name="role"
+                value={formData.role}
+                onChange={handleChange}
+                label="Rol de Usuario"
+              >
+                <MenuItem value="docente">Docente</MenuItem>
+                <MenuItem value="admin">Administrador</MenuItem>
+              </Select>
+              <FormHelperText>
+                {!formData.role ? 'Por favor selecciona un rol' : 
+                 formData.role === 'admin' ? 'Rol de administrador seleccionado' : 'Rol de docente seleccionado'}
+              </FormHelperText>
+            </FormControl>
           </Box>
         );
       case 2:
@@ -427,7 +443,7 @@ export default function Register() {
               onBlur={handleEmailBlur}
               required
               icon={<Email />}
-              disabled
+              helperText="Ingresa tu correo Gmail (ejemplo: usuario@gmail.com)"
             />
             <AnimatedTextField
               label="Contraseña"
@@ -467,6 +483,21 @@ export default function Register() {
                 </InputAdornment>
               }
             />
+            <FormControl fullWidth required sx={{ mt: 2 }}>
+              <InputLabel>Rol</InputLabel>
+              <Select
+                name="role"
+                value={formData.role}
+                onChange={handleChange}
+                required
+              >
+                <MenuItem value="docente">Docente</MenuItem>
+                <MenuItem value="admin">Administrador</MenuItem>
+              </Select>
+              <FormHelperText>
+                {!formData.role ? 'Por favor selecciona un rol' : ''}
+              </FormHelperText>
+            </FormControl>
           </Box>
         );
       default:

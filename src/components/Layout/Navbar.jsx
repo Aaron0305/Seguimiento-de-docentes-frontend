@@ -204,7 +204,7 @@ export default function Navbar() {
                     letterSpacing: '0.5px'
                   }}
                 >
-                  Sistema Integral de Control de Servicio Social
+                  Sistema de Seguimiento de Docentes
                 </Typography>
                 <Typography 
                   variant="subtitle2" 
