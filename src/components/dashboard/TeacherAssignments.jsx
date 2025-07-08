@@ -6,10 +6,16 @@ import {
     Button,
     Card,
     CardContent,
-    CardActions,
+    IconButton,
+    Table,
+    TableBody,
+    TableCell,
+    TableContainer,
+    TableHead,
+    TableRow,
+    TablePagination,
     Chip,
     Grid,
-    Divider,
     Alert,
     CircularProgress,
     Dialog,
@@ -17,10 +23,13 @@ import {
     DialogContent,
     DialogActions,
     TextField,
-    MenuItem,
-    IconButton,
     Tooltip,
-    Badge
+    Badge,
+    Fade,
+    Collapse,
+    Zoom,
+    useTheme,
+    alpha
 } from '@mui/material';
 import {
     Assignment as AssignmentIcon,
@@ -33,40 +42,47 @@ import {
     Visibility,
     Done,
     Close,
-    CalendarToday
+    CalendarToday,
+    Sort,
+    SortByAlpha,
+    AccessTime,
+    Description,
+    Person
 } from '@mui/icons-material';
+import { motion, AnimatePresence } from 'framer-motion';
 import { getTeacherAssignmentStats, getTeacherAssignments, markAssignmentCompleted } from '../../services/assignmentService';
 
 const TeacherAssignments = () => {
+    const theme = useTheme();
+    
     // Estados principales
     const [assignments, setAssignments] = useState([]);
     const [stats, setStats] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     
-    // Estados para filtros
-    const [statusFilter, setStatusFilter] = useState('all');
-    const [searchTerm, setSearchTerm] = useState('');
-    const [sortBy, setSortBy] = useState('-createdAt');
+    // Estados para filtros y ordenamiento
+    const [filters, setFilters] = useState({
+        status: 'all',
+        search: '',
+        sortBy: '-createdAt',
+        sortDirection: 'desc'
+    });
     
     // Estados para paginación
-    const [page, setPage] = useState(1);
-    const [totalPages, setTotalPages] = useState(1);
+    const [page, setPage] = useState(0);
+    const [rowsPerPage, setRowsPerPage] = useState(10);
     
-    // Estados para diálogos
+    // Estados para diálogos y animaciones
     const [selectedAssignment, setSelectedAssignment] = useState(null);
     const [showDetailDialog, setShowDetailDialog] = useState(false);
     const [actionLoading, setActionLoading] = useState(false);
+    const [activeFilter, setActiveFilter] = useState(null);
 
-    // Cargar estadísticas al montar el componente
     useEffect(() => {
         loadStats();
-    }, []);
-
-    // Cargar asignaciones cuando cambian los filtros
-    useEffect(() => {
         loadAssignments();
-    }, [statusFilter, searchTerm, sortBy, page]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [filters, page, rowsPerPage]);
 
     const loadStats = async () => {
         try {
@@ -82,37 +98,24 @@ const TeacherAssignments = () => {
     const loadAssignments = async () => {
         try {
             setLoading(true);
-            setError(''); // Limpiar errores anteriores
+            setError('');
             
             const params = {
-                status: statusFilter,
-                search: searchTerm,
-                sort: sortBy,
-                page: page,
-                limit: 6
+                status: filters.status,
+                search: filters.search,
+                sort: filters.sortBy,
+                page: page + 1,
+                limit: rowsPerPage
             };
-
-            console.log('🔄 TeacherAssignments - Cargando asignaciones con parámetros:', params);
 
             const response = await getTeacherAssignments(params);
             
-            console.log('📥 TeacherAssignments - Respuesta completa:', response);
-            
             if (response.success) {
-                console.log('✅ Respuesta exitosa, actualizando estado con asignaciones:', response.assignments?.length || 0);
                 setAssignments(response.assignments || []);
-                setTotalPages(response.pagination?.totalPages || 1);
-                
-                // Log del estado después de actualizar
-                setTimeout(() => {
-                    console.log('📊 Estado actualizado - assignments.length:', assignments.length);
-                }, 100);
             } else {
-                console.log('❌ Respuesta no exitosa:', response);
-                setError('La respuesta del servidor no fue exitosa');
+                setError('Error al cargar las asignaciones');
             }
         } catch (error) {
-            console.error('❌ Error cargando asignaciones:', error);
             setError('Error al cargar las asignaciones: ' + (error.message || 'Error desconocido'));
         } finally {
             setLoading(false);
@@ -122,29 +125,19 @@ const TeacherAssignments = () => {
     const handleCompleteAssignment = async (assignmentId) => {
         try {
             setActionLoading(true);
-            setError(''); // Limpiar errores anteriores
-            
-            console.log('🔄 Marcando asignación como completada:', assignmentId);
+            setError('');
             
             const response = await markAssignmentCompleted(assignmentId);
             
-            console.log('✅ Respuesta del servidor:', response);
-            
             if (response.success) {
-                console.log('✅ Asignación completada exitosamente');
                 await loadAssignments();
                 await loadStats();
                 setShowDetailDialog(false);
-                
-                // Mostrar mensaje de éxito
-                setError(''); // Limpiar cualquier error anterior
             } else {
                 throw new Error(response.error || 'Error desconocido');
             }
         } catch (error) {
-            console.error('❌ Error completando asignación:', error);
-            const errorMessage = error.response?.data?.error || error.message || 'Error al marcar como completada';
-            setError(errorMessage);
+            setError(error.message || 'Error al marcar como completada');
         } finally {
             setActionLoading(false);
         }
@@ -157,70 +150,19 @@ const TeacherAssignments = () => {
         const due = new Date(dueDate);
         const close = new Date(closeDate);
         
-        if (now > close) return 'error'; // Asignación cerrada
-        if (now > due) return 'warning'; // Vencida pero aún abierta
+        if (now > close) return 'error';
+        if (now > due) return 'warning';
         
-        // Próxima a vencer
         const daysUntilDue = Math.ceil((due - now) / (1000 * 60 * 60 * 24));
-        if (daysUntilDue <= 1) return 'error'; // Vence hoy o mañana
-        if (daysUntilDue <= 3) return 'warning'; // Vence en 2-3 días
+        if (daysUntilDue <= 1) return 'error';
+        if (daysUntilDue <= 3) return 'warning';
         
         return 'primary';
     };
 
-    const getStatusLabel = (status, dueDate, closeDate) => {
-        if (status === 'completed') return 'Completada';
-        if (status === 'pending') {
-            const now = new Date();
-            const due = new Date(dueDate);
-            const close = new Date(closeDate);
-            
-            if (now > close) return 'Cerrada - No entregada';
-            if (now > due) return 'Vencida - Aún puede entregar';
-            
-            // Calcular tiempo restante
-            const daysUntilDue = Math.ceil((due - now) / (1000 * 60 * 60 * 24));
-            
-            if (daysUntilDue <= 0) {
-                return 'Vence hoy';
-            } else if (daysUntilDue === 1) {
-                return 'Vence mañana';
-            } else {
-                return `${daysUntilDue} días restantes`;
-            }
-        }
-        return status;
-    };
-
     const formatDate = (dateString) => {
         try {
-            if (!dateString || dateString === 'Invalid Date') {
-                return 'Fecha no válida';
-            }
             const date = new Date(dateString);
-            if (isNaN(date.getTime())) {
-                return 'Fecha no válida';
-            }
-            return date.toLocaleDateString('es-ES', {
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric'
-            });
-        } catch (error) {
-            console.error('Error formateando fecha:', error);
-            return 'Fecha no válida';
-        }
-    };
-
-    const formatDateWithTime = (dateString) => {
-        try {
-            if (!dateString || dateString === 'Invalid Date') {
-                return 'Fecha no válida';
-            }
-            const date = new Date(dateString);
-            if (isNaN(date.getTime())) {
-                return 'Fecha no válida';
-            }
             return date.toLocaleDateString('es-ES', {
                 year: 'numeric',
                 month: 'long',
@@ -229,327 +171,318 @@ const TeacherAssignments = () => {
                 minute: '2-digit'
             });
         } catch (error) {
-            console.error('Error formateando fecha con hora:', error);
             return 'Fecha no válida';
         }
     };
 
-    const formatTimeRemaining = (dueDate, closeDate) => {
-        try {
-            if (!dueDate || !closeDate) {
-                return 'Fechas no válidas';
-            }
-            
-            const now = new Date();
-            const due = new Date(dueDate);
-            const close = new Date(closeDate);
-            
-            // Verificar que las fechas sean válidas
-            if (isNaN(due.getTime()) || isNaN(close.getTime())) {
-                return 'Fechas no válidas';
-            }
-            
-            if (now > close) return 'Cerrada - No se puede entregar';
-            if (now > due) {
-                const diffTime = close - now;
-                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                if (diffDays < 0) return 'Cerrada';
-                if (diffDays === 0) return 'Cierra hoy - ¡Entrega tarde!';
-                return `${diffDays} días para cierre - Entrega tardía`;
-            }
-            
-            const diffTime = due - now;
-            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-            
-            if (diffDays < 0) return 'Vencida';
-            if (diffDays === 0) return 'Vence hoy';
-            if (diffDays === 1) return 'Vence mañana';
-            return `${diffDays} días restantes`;
-        } catch (error) {
-            console.error('Error calculando tiempo restante:', error);
-            return 'Error en fechas';
-        }
+    const handleChangePage = (event, newPage) => {
+        setPage(newPage);
     };
 
-    // Log para debug - ver estado actual
-    console.log('🎨 TeacherAssignments - Renderizando con estado:', {
-        loading,
-        assignmentsLength: assignments.length,
-        error,
-        statusFilter,
-        searchTerm,
-        page,
-        totalPages
-    });
+    const handleChangeRowsPerPage = (event) => {
+        setRowsPerPage(parseInt(event.target.value, 10));
+        setPage(0);
+    };
 
-    if (loading && assignments.length === 0) {
-        return (
-            <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
-                <CircularProgress />
-            </Box>
-        );
-    }
+    const handleFilterClick = (filterType) => {
+        setActiveFilter(filterType);
+        setFilters(prev => ({
+            ...prev,
+            status: filterType === prev.status ? 'all' : filterType
+        }));
+    };
+
+    const handleSort = (column) => {
+        setFilters(prev => ({
+            ...prev,
+            sortBy: column,
+            sortDirection: prev.sortDirection === 'asc' ? 'desc' : 'asc'
+        }));
+    };
+
+    // Componente de Estadísticas Animado
+    const StatsCard = ({ icon: Icon, count, label, color, onClick, active }) => (
+        <Zoom in={true} style={{ transitionDelay: '100ms' }}>
+            <Card 
+                component={motion.div}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                sx={{
+                    cursor: 'pointer',
+                    bgcolor: active ? alpha(theme.palette[color].main, 0.1) : 'background.paper',
+                    transition: 'all 0.3s ease'
+                }}
+                onClick={onClick}
+            >
+                <CardContent sx={{ textAlign: 'center', py: 2 }}>
+                    <Badge badgeContent={count} color={color} max={99}>
+                        <Icon sx={{ fontSize: 40, color: theme.palette[color].main }} />
+                    </Badge>
+                    <Typography variant="h6">{count}</Typography>
+                    <Typography variant="body2" color="text.secondary">
+                        {label}
+                    </Typography>
+                </CardContent>
+            </Card>
+        </Zoom>
+    );
 
     return (
-        <Box>
+        <Box sx={{ width: '100%', mb: 4 }}>
             {/* Header con estadísticas */}
             {stats && (
                 <Grid container spacing={2} sx={{ mb: 3 }}>
                     <Grid item xs={6} sm={3}>
-                        <Card>
-                            <CardContent sx={{ textAlign: 'center', py: 2 }}>
-                                <Badge badgeContent={stats.total} color="primary" max={99}>
-                                    <AssignmentIcon color="primary" sx={{ fontSize: 40 }} />
-                                </Badge>
-                                <Typography variant="h6">{stats.total}</Typography>
-                                <Typography variant="body2" color="text.secondary">
-                                    Total
-                                </Typography>
-                            </CardContent>
-                        </Card>
+                        <StatsCard
+                            icon={AssignmentIcon}
+                            count={stats.total}
+                            label="Total"
+                            color="primary"
+                            onClick={() => handleFilterClick('all')}
+                            active={filters.status === 'all'}
+                        />
                     </Grid>
                     <Grid item xs={6} sm={3}>
-                        <Card>
-                            <CardContent sx={{ textAlign: 'center', py: 2 }}>
-                                <Badge badgeContent={stats.pending} color="warning" max={99}>
-                                    <Schedule color="warning" sx={{ fontSize: 40 }} />
-                                </Badge>
-                                <Typography variant="h6">{stats.pending}</Typography>
-                                <Typography variant="body2" color="text.secondary">
-                                    Pendientes
-                                </Typography>
-                            </CardContent>
-                        </Card>
+                        <StatsCard
+                            icon={Schedule}
+                            count={stats.pending}
+                            label="Pendientes"
+                            color="warning"
+                            onClick={() => handleFilterClick('pending')}
+                            active={filters.status === 'pending'}
+                        />
                     </Grid>
                     <Grid item xs={6} sm={3}>
-                        <Card>
-                            <CardContent sx={{ textAlign: 'center', py: 2 }}>
-                                <Badge badgeContent={stats.completed} color="success" max={99}>
-                                    <CheckCircle color="success" sx={{ fontSize: 40 }} />
-                                </Badge>
-                                <Typography variant="h6">{stats.completed}</Typography>
-                                <Typography variant="body2" color="text.secondary">
-                                    Completadas
-                                </Typography>
-                            </CardContent>
-                        </Card>
+                        <StatsCard
+                            icon={CheckCircle}
+                            count={stats.completed}
+                            label="Completadas"
+                            color="success"
+                            onClick={() => handleFilterClick('completed')}
+                            active={filters.status === 'completed'}
+                        />
                     </Grid>
                     <Grid item xs={6} sm={3}>
-                        <Card>
-                            <CardContent sx={{ textAlign: 'center', py: 2 }}>
-                                <Badge badgeContent={stats.overdue} color="error" max={99}>
-                                    <Warning color="error" sx={{ fontSize: 40 }} />
-                                </Badge>
-                                <Typography variant="h6">{stats.overdue}</Typography>
-                                <Typography variant="body2" color="text.secondary">
-                                    Vencidas
-                                </Typography>
-                            </CardContent>
-                        </Card>
+                        <StatsCard
+                            icon={Warning}
+                            count={stats.overdue}
+                            label="Vencidas"
+                            color="error"
+                            onClick={() => handleFilterClick('overdue')}
+                            active={filters.status === 'overdue'}
+                        />
                     </Grid>
                 </Grid>
             )}
 
-            {/* Controles de filtrado */}
-            <Paper sx={{ p: 2, mb: 3 }}>
+            {/* Barra de búsqueda y filtros */}
+            <Paper 
+                component={motion.div}
+                initial={{ y: -20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                sx={{ p: 2, mb: 3 }}
+            >
                 <Grid container spacing={2} alignItems="center">
-                    <Grid item xs={12} sm={6} md={3}>
-                        <TextField
-                            select
-                            fullWidth
-                            label="Estado"
-                            value={statusFilter}
-                            onChange={(e) => setStatusFilter(e.target.value)}
-                            size="small"
-                        >
-                            <MenuItem value="all">Todas</MenuItem>
-                            <MenuItem value="pending">Pendientes</MenuItem>
-                            <MenuItem value="completed">Completadas</MenuItem>
-                        </TextField>
-                    </Grid>
-                    <Grid item xs={12} sm={6} md={4}>
+                    <Grid item xs={12} md={6}>
                         <TextField
                             fullWidth
-                            label="Buscar asignaciones"
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            size="small"
+                            placeholder="Buscar asignaciones..."
+                            value={filters.search}
+                            onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
                             InputProps={{
-                                startAdornment: <Search sx={{ mr: 1, color: 'text.secondary' }} />
+                                startAdornment: <Search sx={{ mr: 1, color: 'text.secondary' }} />,
                             }}
+                            sx={{ bgcolor: 'background.paper' }}
                         />
                     </Grid>
-                    <Grid item xs={12} sm={6} md={3}>
-                        <TextField
-                            select
-                            fullWidth
-                            label="Ordenar por"
-                            value={sortBy}
-                            onChange={(e) => setSortBy(e.target.value)}
-                            size="small"
-                        >
-                            <MenuItem value="-createdAt">Más recientes</MenuItem>
-                            <MenuItem value="createdAt">Más antiguas</MenuItem>
-                            <MenuItem value="dueDate">Fecha de entrega</MenuItem>
-                            <MenuItem value="title">Título A-Z</MenuItem>
-                        </TextField>
-                    </Grid>
-                    <Grid item xs={12} sm={6} md={2}>
-                        <Button
-                            fullWidth
-                            variant="outlined"
-                            onClick={loadAssignments}
-                            startIcon={<Refresh />}
-                            disabled={loading}
-                        >
-                            Actualizar
-                        </Button>
+                    <Grid item xs={12} md={6}>
+                        <Box display="flex" justifyContent="flex-end" gap={1}>
+                            <Button
+                                variant="outlined"
+                                startIcon={<FilterList />}
+                                onClick={() => setFilters(prev => ({ ...prev, status: 'all' }))}
+                            >
+                                Limpiar filtros
+                            </Button>
+                            <Button
+                                variant="contained"
+                                startIcon={<Refresh />}
+                                onClick={loadAssignments}
+                                disabled={loading}
+                            >
+                                Actualizar
+                            </Button>
+                        </Box>
                     </Grid>
                 </Grid>
             </Paper>
 
-            {/* Error */}
-            {error && (
-                <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>
-                    {error}
-                </Alert>
-            )}
-
-            {/* Lista de asignaciones */}
-            {assignments.length === 0 ? (
-                <Paper sx={{ p: 4, textAlign: 'center' }}>
-                    <AssignmentIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
-                    <Typography variant="h6" color="text.secondary">
-                        No tienes asignaciones
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                        Cuando tengas asignaciones aparecerán aquí
-                    </Typography>
-                </Paper>
-            ) : (
-                <Grid container spacing={2}>
-                    {assignments.map((assignment) => {
-                        const isOverdue = assignment.status === 'pending' && new Date(assignment.dueDate) < new Date();
-                        const status = isOverdue ? 'overdue' : assignment.status;
-                        
-                        return (
-                            <Grid item xs={12} md={6} key={assignment._id}>
-                                <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-                                    <CardContent sx={{ flexGrow: 1 }}>
-                                        <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={1}>
-                                            <Typography variant="h6" component="h2" sx={{ flexGrow: 1, mr: 1 }}>
-                                                {assignment.title}
-                                            </Typography>
-                                            <Chip
-                                                label={getStatusLabel(status, assignment.dueDate, assignment.closeDate)}
-                                                color={getStatusColor(status, assignment.dueDate, assignment.closeDate)}
-                                                size="small"
-                                            />
-                                        </Box>
-                                        
-                                        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                                            {assignment.description.length > 100
-                                                ? `${assignment.description.substring(0, 100)}...`
-                                                : assignment.description
-                                            }
+            {/* Tabla de asignaciones */}
+            <TableContainer 
+                component={Paper}
+                sx={{ 
+                    width: '100%',
+                    overflow: 'hidden',
+                    borderRadius: 2,
+                    boxShadow: theme.shadows[3]
+                }}
+            >
+                <Table sx={{ minWidth: 800 }}>
+                    <TableHead>
+                        <TableRow>
+                            <TableCell 
+                                onClick={() => handleSort('title')}
+                                sx={{ cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } }}
+                            >
+                                <Box display="flex" alignItems="center">
+                                    <Description sx={{ mr: 1 }} />
+                                    Título
+                                    <SortByAlpha sx={{ ml: 1, fontSize: 18 }} />
+                                </Box>
+                            </TableCell>
+                            <TableCell 
+                                onClick={() => handleSort('dueDate')}
+                                sx={{ cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } }}
+                            >
+                                <Box display="flex" alignItems="center">
+                                    <AccessTime sx={{ mr: 1 }} />
+                                    Fecha de entrega
+                                    <Sort sx={{ ml: 1, fontSize: 18 }} />
+                                </Box>
+                            </TableCell>
+                            <TableCell>Estado</TableCell>
+                            <TableCell 
+                                onClick={() => handleSort('createdBy.nombre')}
+                                sx={{ cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } }}
+                            >
+                                <Box display="flex" alignItems="center">
+                                    <Person sx={{ mr: 1 }} />
+                                    Creado por
+                                    <Sort sx={{ ml: 1, fontSize: 18 }} />
+                                </Box>
+                            </TableCell>
+                            <TableCell align="right">Acciones</TableCell>
+                        </TableRow>
+                    </TableHead>
+                    <TableBody>
+                        <AnimatePresence>
+                            {assignments.map((assignment) => (
+                                <TableRow
+                                    key={assignment._id}
+                                    component={motion.tr}
+                                    initial={{ opacity: 0, x: -20 }}
+                                    animate={{ opacity: 1, x: 0 }}
+                                    exit={{ opacity: 0, x: 20 }}
+                                    whileHover={{ scale: 1.01, backgroundColor: alpha(theme.palette.primary.main, 0.04) }}
+                                    sx={{ 
+                                        '&:last-child td, &:last-child th': { border: 0 },
+                                        transition: 'all 0.3s ease'
+                                    }}
+                                >
+                                    <TableCell>
+                                        <Typography variant="subtitle2" noWrap>
+                                            {assignment.title}
                                         </Typography>
-
-                                        <Box display="flex" alignItems="center" mb={1}>
-                                            <CalendarToday sx={{ fontSize: 16, mr: 1, color: 'text.secondary' }} />
-                                            <Typography variant="body2" color="text.secondary">
-                                                Vence: {formatDateWithTime(assignment.dueDate)}
-                                            </Typography>
-                                        </Box>
-
-                                        <Box display="flex" alignItems="center" mb={1}>
-                                            <CalendarToday sx={{ fontSize: 16, mr: 1, color: 'error.main' }} />
-                                            <Typography variant="body2" color="text.secondary">
-                                                Cierra: {formatDateWithTime(assignment.closeDate)}
-                                            </Typography>
-                                        </Box>
-
-                                        {assignment.status === 'pending' && (
-                                            <Typography
-                                                variant="body2"
-                                                color={isOverdue ? 'error' : 'warning.main'}
-                                                sx={{ fontWeight: 'medium' }}
-                                            >
-                                                {formatTimeRemaining(assignment.dueDate, assignment.closeDate)}
-                                            </Typography>
-                                        )}
-
-                                        <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                                            Creado por: {assignment.createdBy?.nombre} {assignment.createdBy?.apellidoPaterno}
+                                        <Typography variant="body2" color="text.secondary" noWrap>
+                                            {assignment.description.substring(0, 60)}...
                                         </Typography>
-                                    </CardContent>
-
-                                    <CardActions>
-                                        <Button
+                                    </TableCell>
+                                    <TableCell>
+                                        <Box display="flex" flexDirection="column">
+                                            <Typography variant="body2">
+                                                {formatDate(assignment.dueDate)}
+                                            </Typography>
+                                            <Typography variant="caption" color="error">
+                                                Cierra: {formatDate(assignment.closeDate)}
+                                            </Typography>
+                                        </Box>
+                                    </TableCell>
+                                    <TableCell>
+                                        <Chip
+                                            label={assignment.status === 'completed' ? 'Completada' : 'Pendiente'}
+                                            color={getStatusColor(assignment.status, assignment.dueDate, assignment.closeDate)}
                                             size="small"
-                                            startIcon={<Visibility />}
-                                            onClick={() => {
-                                                setSelectedAssignment(assignment);
-                                                setShowDetailDialog(true);
-                                            }}
-                                        >
-                                            Ver detalles
-                                        </Button>
-                                        
-                                        {assignment.status === 'pending' && (
-                                            (() => {
-                                                const now = new Date();
-                                                const closeDate = new Date(assignment.closeDate);
-                                                const isClosed = now > closeDate;
-                                                
-                                                return (
-                                                    <Button
+                                            sx={{ minWidth: 100 }}
+                                        />
+                                    </TableCell>
+                                    <TableCell>
+                                        <Typography variant="body2">
+                                            {assignment.createdBy?.nombre} {assignment.createdBy?.apellidoPaterno}
+                                        </Typography>
+                                    </TableCell>
+                                    <TableCell align="right">
+                                        <Box display="flex" justifyContent="flex-end" gap={1}>
+                                            <Tooltip title="Ver detalles">
+                                                <IconButton
+                                                    size="small"
+                                                    onClick={() => {
+                                                        setSelectedAssignment(assignment);
+                                                        setShowDetailDialog(true);
+                                                    }}
+                                                >
+                                                    <Visibility />
+                                                </IconButton>
+                                            </Tooltip>
+                                            {assignment.status === 'pending' && (
+                                                <Tooltip title="Marcar como completada">
+                                                    <IconButton
                                                         size="small"
-                                                        color={isClosed ? "error" : "success"}
-                                                        startIcon={<Done />}
-                                                        onClick={() => {
-                                                            if (isClosed) {
-                                                                setError('Esta asignación ya ha cerrado. No se pueden realizar entregas.');
-                                                                setTimeout(() => setError(''), 5000);
-                                                            } else {
-                                                                handleCompleteAssignment(assignment._id);
-                                                            }
-                                                        }}
-                                                        disabled={actionLoading}
-                                                        variant={isClosed ? "outlined" : "contained"}
+                                                        color="success"
+                                                        onClick={() => handleCompleteAssignment(assignment._id)}
+                                                        disabled={actionLoading || new Date() > new Date(assignment.closeDate)}
                                                     >
-                                                        {isClosed ? 'Cerrada' : 'Completar'}
-                                                    </Button>
-                                                );
-                                            })()
-                                        )}
-                                    </CardActions>
-                                </Card>
-                            </Grid>
-                        );
-                    })}
-                </Grid>
-            )}
+                                                        <Done />
+                                                    </IconButton>
+                                                </Tooltip>
+                                            )}
+                                        </Box>
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                        </AnimatePresence>
+                    </TableBody>
+                </Table>
 
-            {/* Paginación */}
-            {totalPages > 1 && (
-                <Box display="flex" justifyContent="center" mt={3}>
-                    <Button
-                        disabled={page === 1}
-                        onClick={() => setPage(page - 1)}
-                    >
-                        Anterior
-                    </Button>
-                    <Typography sx={{ mx: 2, alignSelf: 'center' }}>
-                        Página {page} de {totalPages}
-                    </Typography>
-                    <Button
-                        disabled={page === totalPages}
-                        onClick={() => setPage(page + 1)}
-                    >
-                        Siguiente
-                    </Button>
-                </Box>
-            )}
+                {/* Estado de carga y error */}
+                {loading && (
+                    <Box display="flex" justifyContent="center" p={3}>
+                        <CircularProgress />
+                    </Box>
+                )}
+                
+                {error && (
+                    <Box p={2}>
+                        <Alert severity="error" onClose={() => setError('')}>
+                            {error}
+                        </Alert>
+                    </Box>
+                )}
+
+                {!loading && assignments.length === 0 && (
+                    <Box display="flex" flexDirection="column" alignItems="center" p={4}>
+                        <AssignmentIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
+                        <Typography variant="h6" color="text.secondary">
+                            No hay asignaciones disponibles
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                            Las nuevas asignaciones aparecerán aquí
+                        </Typography>
+                    </Box>
+                )}
+
+                {/* Paginación */}
+                <TablePagination
+                    component="div"
+                    count={-1}
+                    page={page}
+                    onPageChange={handleChangePage}
+                    rowsPerPage={rowsPerPage}
+                    onRowsPerPageChange={handleChangeRowsPerPage}
+                    rowsPerPageOptions={[5, 10, 25, 50]}
+                    labelRowsPerPage="Filas por página"
+                    labelDisplayedRows={({ from, to }) => `${from}-${to}`}
+                />
+            </TableContainer>
 
             {/* Diálogo de detalles */}
             <Dialog
@@ -557,6 +490,8 @@ const TeacherAssignments = () => {
                 onClose={() => setShowDetailDialog(false)}
                 maxWidth="md"
                 fullWidth
+                TransitionComponent={Fade}
+                transitionDuration={300}
             >
                 {selectedAssignment && (
                     <>
@@ -573,7 +508,7 @@ const TeacherAssignments = () => {
                         <DialogContent>
                             <Box mb={2}>
                                 <Chip
-                                    label={getStatusLabel(selectedAssignment.status, selectedAssignment.dueDate, selectedAssignment.closeDate)}
+                                    label={selectedAssignment.status === 'completed' ? 'Completada' : 'Pendiente'}
                                     color={getStatusColor(selectedAssignment.status, selectedAssignment.dueDate, selectedAssignment.closeDate)}
                                 />
                             </Box>
@@ -582,104 +517,58 @@ const TeacherAssignments = () => {
                                 {selectedAssignment.description}
                             </Typography>
 
-                            <Divider sx={{ my: 2 }} />
-
                             <Grid container spacing={2}>
-                                <Grid item xs={6}>
+                                <Grid item xs={12} sm={6}>
                                     <Typography variant="subtitle2" color="text.secondary">
                                         Fecha de entrega
                                     </Typography>
                                     <Typography variant="body2">
-                                        {formatDateWithTime(selectedAssignment.dueDate)}
+                                        {formatDate(selectedAssignment.dueDate)}
                                     </Typography>
                                 </Grid>
-                                <Grid item xs={6}>
+                                <Grid item xs={12} sm={6}>
                                     <Typography variant="subtitle2" color="text.secondary">
                                         Fecha de cierre
                                     </Typography>
-                                    <Typography variant="body2" color="error.main">
-                                        {formatDateWithTime(selectedAssignment.closeDate)}
+                                    <Typography variant="body2" color="error">
+                                        {formatDate(selectedAssignment.closeDate)}
                                     </Typography>
                                 </Grid>
-                                <Grid item xs={6}>
-                                    <Typography variant="subtitle2" color="text.secondary">
-                                        Creado por
-                                    </Typography>
-                                    <Typography variant="body2">
-                                        {selectedAssignment.createdBy?.nombre} {selectedAssignment.createdBy?.apellidoPaterno}
-                                        {selectedAssignment.createdBy?.role && (
-                                            <Typography component="span" variant="caption" color="primary" sx={{ ml: 1 }}>
-                                                ({selectedAssignment.createdBy.role === 'admin' ? 'Administrador' : 'Docente'})
-                                            </Typography>
-                                        )}
-                                    </Typography>
-                                </Grid>
-                                <Grid item xs={6}>
-                                    <Typography variant="subtitle2" color="text.secondary">
-                                        Fecha de creación
-                                    </Typography>
-                                    <Typography variant="body2">
-                                        {formatDate(selectedAssignment.createdAt)}
-                                    </Typography>
-                                </Grid>
-                                {selectedAssignment.completedAt && (
-                                    <Grid item xs={6}>
-                                        <Typography variant="subtitle2" color="text.secondary">
-                                            Completado el
-                                        </Typography>
-                                        <Typography variant="body2">
-                                            {formatDate(selectedAssignment.completedAt)}
-                                        </Typography>
-                                    </Grid>
-                                )}
                             </Grid>
 
                             {selectedAssignment.attachments && selectedAssignment.attachments.length > 0 && (
-                                <>
-                                    <Divider sx={{ my: 2 }} />
+                                <Box mt={2}>
                                     <Typography variant="subtitle2" color="text.secondary" gutterBottom>
                                         Archivos adjuntos
                                     </Typography>
-                                    {selectedAssignment.attachments.map((file, index) => (
-                                        <Chip
-                                            key={index}
-                                            label={file.fileName}
-                                            onClick={() => window.open(`http://localhost:3001/${file.fileUrl}`, '_blank')}
-                                            sx={{ mr: 1, mb: 1 }}
-                                        />
-                                    ))}
-                                </>
+                                    <Box display="flex" flexWrap="wrap" gap={1}>
+                                        {selectedAssignment.attachments.map((file, index) => (
+                                            <Chip
+                                                key={index}
+                                                label={file.fileName}
+                                                onClick={() => window.open(`http://localhost:3001/${file.fileUrl}`, '_blank')}
+                                                sx={{ 
+                                                    '&:hover': { 
+                                                        bgcolor: alpha(theme.palette.primary.main, 0.1)
+                                                    }
+                                                }}
+                                            />
+                                        ))}
+                                    </Box>
+                                </Box>
                             )}
                         </DialogContent>
                         <DialogActions>
                             {selectedAssignment.status === 'pending' && (
-                                (() => {
-                                    const now = new Date();
-                                    const dueDate = new Date(selectedAssignment.dueDate);
-                                    const closeDate = new Date(selectedAssignment.closeDate);
-                                    const isClosed = now > closeDate;
-                                    const isOverdue = now > dueDate && !isClosed;
-                                    
-                                    // Si la asignación está cerrada, no mostrar botón
-                                    if (isClosed) {
-                                        return null;
-                                    }
-                                    
-                                    return (
-                                        <Button
-                                            color={isOverdue ? "warning" : "success"}
-                                            variant="contained"
-                                            startIcon={<Done />}
-                                            onClick={() => handleCompleteAssignment(selectedAssignment._id)}
-                                            disabled={actionLoading}
-                                        >
-                                            {actionLoading 
-                                                ? 'Completando...' 
-                                                : (isOverdue ? 'Entregar con retraso' : 'Marcar como completada')
-                                            }
-                                        </Button>
-                                    );
-                                })()
+                                <Button
+                                    color="success"
+                                    variant="contained"
+                                    startIcon={<Done />}
+                                    onClick={() => handleCompleteAssignment(selectedAssignment._id)}
+                                    disabled={actionLoading || new Date() > new Date(selectedAssignment.closeDate)}
+                                >
+                                    {actionLoading ? 'Procesando...' : 'Marcar como completada'}
+                                </Button>
                             )}
                             <Button onClick={() => setShowDetailDialog(false)}>
                                 Cerrar
