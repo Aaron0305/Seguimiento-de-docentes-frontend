@@ -249,18 +249,57 @@ export default function Navbar() {
                   Registro
                 </NavButton>
               </Fade>
+            </Box>
+          ) : (
+            /* Mostrar navegación cuando el usuario SÍ está autenticado */
+            <>
+              <Box sx={{ display: { xs: 'none', md: 'flex' }, gap: 1 }}>
+                <Fade in={true} timeout={1000}>
+                  <NavButton 
+                    sx={{ 
+                      backgroundColor: isActive('/') ? 'rgba(255, 255, 255, 0.15)' : 'transparent',
+                      '&::after': isActive('/') ? { width: '90%', backgroundColor: '#FFD700' } : {},
+                    }}
+                    onClick={() => navigate('/')}
+                  >
+                    Inicio
+                  </NavButton>
+                </Fade>
 
-              <Fade in={true} timeout={1400}>
-                <AdminButton
-                  onClick={handleAdminMenu}
-                  startIcon={<AdminPanelSettingsIcon />}
-                  sx={{ ml: 1 }}
-                >
-                  Administrador
-                </AdminButton>
-              </Fade>
+                <Fade in={true} timeout={1200}>
+                  <AdminButton
+                    onClick={handleAdminMenu}
+                    startIcon={<AdminPanelSettingsIcon />}
+                  >
+                    Administración
+                  </AdminButton>
+                </Fade>
 
-              {/* Menú desplegable para administrador cuando NO está autenticado */}
+                <Fade in={true} timeout={1400}>
+                  <Button 
+                    onClick={handleLogout}
+                    variant="contained"
+                    sx={{ 
+                      backgroundColor: 'rgba(255, 255, 255, 0.15)',
+                      backdropFilter: 'blur(10px)',
+                      color: '#ffffff',
+                      fontWeight: 500,
+                      border: '1px solid rgba(255, 255, 255, 0.3)',
+                      transition: 'all 0.3s ease',
+                      boxShadow: '0 2px 5px rgba(0, 0, 0, 0.1)',
+                      '&:hover': {
+                        backgroundColor: 'rgba(255, 255, 255, 0.25)',
+                        transform: 'translateY(-2px)',
+                        boxShadow: '0 4px 8px rgba(0, 0, 0, 0.15)',
+                      }
+                    }}
+                  >
+                    Cerrar Sesión
+                  </Button>
+                </Fade>
+              </Box>
+              
+              {/* Menú desplegable para administrador */}
               <Menu
                 anchorEl={adminMenuAnchor}
                 open={Boolean(adminMenuAnchor)}
@@ -293,49 +332,6 @@ export default function Navbar() {
                   Acceso Administrativo
                 </MenuItem>
               </Menu>
-            </Box>
-          ) : (
-            /* Mostrar navegación cuando el usuario SÍ está autenticado */
-            <>
-              <Box sx={{ display: { xs: 'none', md: 'flex' } }}>
-                <Fade in={true} timeout={1200}>
-                  <NavButton 
-                    sx={{ 
-                      mr: 1, 
-                      backgroundColor: isActive('/') ? 'rgba(255, 255, 255, 0.15)' : 'transparent',
-                      '&::after': isActive('/') ? { width: '90%', backgroundColor: '#FFD700' } : {},
-                      boxShadow: isActive('/') ? '0 2px 5px rgba(0, 0, 0, 0.1)' : 'none',
-                    }}
-                    onClick={() => navigate('/')}
-                  >
-                    Inicio
-                  </NavButton>
-                </Fade>
-
-                
-                <Fade in={true} timeout={1800}>
-                  <Button 
-                    onClick={handleLogout}
-                    variant="contained"
-                    sx={{ 
-                      backgroundColor: 'rgba(255, 255, 255, 0.15)',
-                      backdropFilter: 'blur(10px)',
-                      color: '#ffffff',
-                      fontWeight: 500,
-                      border: '1px solid rgba(255, 255, 255, 0.3)',
-                      transition: 'all 0.3s ease',
-                      boxShadow: '0 2px 5px rgba(0, 0, 0, 0.1)',
-                      '&:hover': {
-                        backgroundColor: 'rgba(255, 255, 255, 0.25)',
-                        transform: 'translateY(-2px)',
-                        boxShadow: '0 4px 8px rgba(0, 0, 0, 0.15)',
-                      }
-                    }}
-                  >
-                    Cerrar Sesión
-                  </Button>
-                </Fade>
-              </Box>
               
               {/* Menú móvil para usuarios autenticados */}
               <Box sx={{ display: { xs: 'flex', md: 'none' } }}>
@@ -399,10 +395,25 @@ export default function Navbar() {
                   >
                     Inicio
                   </MenuItem>
+
+                  <MenuItem 
+                    onClick={handleAdminDialogOpen}
+                    sx={{
+                      my: 0.5,
+                      mx: 1,
+                      borderRadius: '4px',
+                      backgroundColor: isAdminRoute() ? 'rgba(255, 255, 255, 0.15)' : 'transparent',
+                      '&:hover': { bgcolor: 'rgba(255, 255, 255, 0.1)' },
+                      borderLeft: isAdminRoute() ? '4px solid #FFD700' : 'none',
+                      pl: isAdminRoute() ? 2 : 3,
+                      fontWeight: isAdminRoute() ? 600 : 400,
+                    }}
+                  >
+                    Administración
+                  </MenuItem>
                   
                   <Divider sx={{ bgcolor: 'rgba(255,255,255,0.2)', my: 1 }} />
                   
-                  <Divider sx={{ bgcolor: 'rgba(255,255,255,0.2)', my: 1 }} />
                   <MenuItem 
                     onClick={handleLogout}
                     sx={{

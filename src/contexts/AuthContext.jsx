@@ -7,6 +7,7 @@ export const AuthContext = createContext();
 export const AuthProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [retryCount, setRetryCount] = useState(0);
 
   // Configurar interceptors de axios para debugging
   useEffect(() => {
@@ -25,6 +26,7 @@ export const AuthProvider = ({ children }) => {
         localStorage.setItem('token', token);
         localStorage.setItem('user', JSON.stringify(user));
         setCurrentUser(user);
+        setRetryCount(0); // Reset retry count on successful login
         return { success: true, user };
       }
       
@@ -36,15 +38,11 @@ export const AuthProvider = ({ children }) => {
 
   const register = async (userData) => {
     try {
-      console.log('📝 Datos de registro:', userData);
-      
       const response = await axios.post('http://localhost:3001/api/auth/register', userData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         }
       });
-
-      console.log('✅ Respuesta del servidor:', response.data);
 
       if (response.data.success) {
         return { success: true, user: response.data.user, message: response.data.message };
@@ -52,9 +50,6 @@ export const AuthProvider = ({ children }) => {
         throw new Error(response.data.message || 'Error inesperado durante el registro');
       }
     } catch (error) {
-      console.error('❌ Error detallado:', error);
-      console.error('❌ Respuesta del servidor:', error.response?.data);
-      
       if (error.response?.data?.message) {
         throw new Error(error.response.data.message);
       } else if (error.message) {
@@ -67,95 +62,83 @@ export const AuthProvider = ({ children }) => {
 
   const logout = () => {
     localStorage.removeItem('token');
-    localStorage.removeItem('user'); // ✨ También remover user del localStorage
+    localStorage.removeItem('user');
     setCurrentUser(null);
+    setRetryCount(0);
   };
 
-  useEffect(() => {
-    const verifyToken = async () => {
-      const token = localStorage.getItem('token');
-      if (token) {
-        try {
-          console.log('🔍 Verificando token y obteniendo datos actualizados...');
-          const response = await axios.get('http://localhost:3001/api/auth/verify', {
-            headers: { Authorization: `Bearer ${token}` }
-          });
-          
-          const userData = response.data.user;
-          console.log('✅ Datos del usuario actualizados:', userData);
-          console.log('📁 Foto de perfil:', userData?.fotoPerfil);
-          
-          // Actualizar localStorage con datos frescos
-          localStorage.setItem('user', JSON.stringify(userData));
-          
-          // ✨ Pequeño delay para asegurar que todo esté listo
-          setTimeout(() => {
-            setCurrentUser(userData);
-            setLoading(false);
-          }, 100);
-          
-        } catch (error) {
-          console.error('❌ Error verificando token:', error);
-          localStorage.removeItem('token');
-          localStorage.removeItem('user');
-          setCurrentUser(null);
-          setLoading(false);
-        }
-      } else {
-        localStorage.removeItem('user');
-        setCurrentUser(null);
-        setLoading(false);
-      }
-    };
-
-    verifyToken();
-  }, []);
-
-  // ✨ NUEVO: Función para actualizar el perfil del usuario
-  const updateUserProfile = async () => {
+  const verifyToken = async () => {
     const token = localStorage.getItem('token');
-    if (token && currentUser) {
-      try {
-        console.log('🔄 Actualizando perfil del usuario...');
-        const response = await axios.get('http://localhost:3001/api/auth/verify', {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        
-        const userData = response.data.user;
-        localStorage.setItem('user', JSON.stringify(userData));
-        setCurrentUser(userData);
-        console.log('✅ Perfil actualizado:', userData);
-        
-        return userData;
-      } catch (error) {
-        console.error('❌ Error actualizando perfil:', error);
-        return null;
+    const savedUser = localStorage.getItem('user');
+    
+    if (!token || !savedUser) {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      setCurrentUser(null);
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const response = await axios.get('http://localhost:3001/api/auth/verify', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      const userData = response.data.user;
+      localStorage.setItem('user', JSON.stringify(userData));
+      setCurrentUser(userData);
+      setRetryCount(0); // Reset retry count on successful verification
+      setLoading(false);
+      
+    } catch (error) {
+      console.error('Error verificando token:', error);
+      
+      // Si el error es de autenticación y no hemos excedido los reintentos
+      if (error.response?.status === 401 && retryCount < 3) {
+        setRetryCount(prev => prev + 1);
+        // Reintentamos en 1 segundo
+        setTimeout(verifyToken, 1000);
+        return;
       }
+      
+      // Si excedimos los reintentos o es otro tipo de error, limpiamos todo
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      setCurrentUser(null);
+      setLoading(false);
     }
   };
 
-  // ✨ NUEVO: Función para solicitar recuperación de contraseña
+  useEffect(() => {
+    verifyToken();
+  }, []);
+
+  // Verificar el token cada 5 minutos
+  useEffect(() => {
+    const interval = setInterval(verifyToken, 300000); // 5 minutos
+    return () => clearInterval(interval);
+  }, []);
+
+  const updateUserProfile = async () => {
+    await verifyToken(); // Usar la misma función de verificación
+    return currentUser;
+  };
+
   const forgotPassword = async (email) => {
     try {
-      console.log('📧 Enviando solicitud de recuperación para:', email);
       const response = await axios.post('http://localhost:3001/api/auth/forgot-password', {
         email
       });
-      
-      console.log('✅ Respuesta del servidor:', response.data);
       
       return { 
         success: true, 
         message: response.data.message || 'Se ha enviado un enlace de recuperación a tu correo electrónico' 
       };
     } catch (error) {
-      console.error('❌ Error en forgotPassword:', error);
-      console.error('❌ Respuesta del error:', error.response?.data);
       throw new Error(error.response?.data?.message || 'Error al procesar la solicitud');
     }
   };
 
-  // ✨ NUEVO: Función para restablecer contraseña
   const resetPassword = async (token, newPassword) => {
     try {
       const response = await axios.post('http://localhost:3001/api/auth/reset-password', {
@@ -180,9 +163,10 @@ export const AuthProvider = ({ children }) => {
         register, 
         logout,
         loading,
-        updateUserProfile, // ✨ Nueva función disponible
-        forgotPassword,    // ✨ Nueva función para recuperar contraseña
-        resetPassword      // ✨ Nueva función para restablecer contraseña
+        updateUserProfile,
+        forgotPassword,
+        resetPassword,
+        verifyToken // Exponemos la función de verificación
       }}
     >
       {!loading && children}

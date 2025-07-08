@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useContext } from 'react';
 import {
     Dialog,
     DialogTitle,
@@ -21,6 +21,7 @@ import {
 } from '@mui/material';
 import { Close as CloseIcon, AttachFile, Delete } from '@mui/icons-material';
 import { styled } from '@mui/material/styles';
+import { AuthContext } from '../../contexts/AuthContext';
 
 const Input = styled('input')({
     display: 'none',
@@ -37,6 +38,7 @@ const FilePreview = styled(Box)(({ theme }) => ({
 }));
 
 export default function Asignation({ open, onClose, users }) {
+    const { verifyToken } = useContext(AuthContext);
     const [form, setForm] = useState({
         title: '',
         description: '',
@@ -132,22 +134,10 @@ export default function Asignation({ open, onClose, users }) {
                 throw new Error('Debe seleccionar al menos un docente para asignaciones individuales');
             }
 
+            // Verificar token antes de proceder
+            await verifyToken();
+            
             const token = localStorage.getItem('token');
-            const user = localStorage.getItem('user');
-            console.log('🔍 Token encontrado:', token ? 'Sí' : 'No');
-            console.log('🔍 Usuario en localStorage:', user ? 'Sí' : 'No');
-            console.log('🔍 Longitud del token:', token ? token.length : 0);
-            
-            if (user) {
-                try {
-                    const userData = JSON.parse(user);
-                    console.log('👤 Datos del usuario:', userData);
-                    console.log('🔑 Rol del usuario:', userData.role);
-                } catch (e) {
-                    console.error('❌ Error parsing user data:', e);
-                }
-            }
-            
             if (!token) {
                 throw new Error('No se encontró el token de autenticación. Por favor, inicia sesión nuevamente.');
             }
@@ -173,15 +163,6 @@ export default function Asignation({ open, onClose, users }) {
                 });
             }
 
-            console.log('📤 Enviando datos:', {
-                title: form.title,
-                description: form.description,
-                dueDate: form.dueDate,
-                isGeneral: form.isGeneral,
-                assignedTo: form.assignedTo,
-                attachments: form.attachments.length
-            });
-
             const response = await fetch('http://localhost:3001/api/assignments', {
                 method: 'POST',
                 headers: {
@@ -189,21 +170,11 @@ export default function Asignation({ open, onClose, users }) {
                 },
                 body: formData
             });
-
-            console.log('📥 Respuesta del servidor:', response.status, response.statusText);
             
             const data = await response.json();
-            console.log('📥 Datos de respuesta:', data);
             
             if (!response.ok) {
-                // Crear un error con información completa
-                const error = new Error(data.error || data.message || 'Error al crear la asignación');
-                error.response = {
-                    status: response.status,
-                    statusText: response.statusText,
-                    data: data
-                };
-                throw error;
+                throw new Error(data.error || data.message || 'Error al crear la asignación');
             }
 
             setSuccess(true);
@@ -216,25 +187,7 @@ export default function Asignation({ open, onClose, users }) {
             }, 1500);
 
         } catch (err) {
-            console.error('Error al crear asignación:', err);
-            
-            // Debug: mostrar todos los detalles del error
-            console.log('🔍 Detalles completos del error:');
-            console.log('  - Mensaje:', err.message);
-            console.log('  - Response status:', err.response?.status);
-            console.log('  - Response data:', err.response?.data);
-            console.log('  - Response headers:', err.response?.headers);
-            
-            // Si el error es de autenticación (status 401)
-            if (err.response?.status === 401) {
-                setError('Sesión expirada. Por favor, inicia sesión nuevamente.');
-                console.log('🔄 Para continuar, cierra este diálogo y vuelve a hacer login');
-            } else if (err.message.includes('Sesión') || err.message.includes('token') || err.message.includes('autenticación')) {
-                setError('Sesión expirada. Por favor, inicia sesión nuevamente.');
-                console.log('🔄 Para continuar, cierra este diálogo y vuelve a hacer login');
-            } else {
-                setError(err.message || 'Error al crear la asignación');
-            }
+            setError(err.message || 'Error al crear la asignación');
         } finally {
             setLoading(false);
         }
@@ -246,34 +199,24 @@ export default function Asignation({ open, onClose, users }) {
             onClose={handleClose}
             maxWidth="md"
             fullWidth
-            PaperProps={{
-                sx: {
-                    borderRadius: 2,
-                    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)',
-                }
-            }}
         >
-            <DialogTitle sx={{ 
-                display: 'flex', 
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                bgcolor: 'primary.main',
-                color: 'white'
-            }}>
-                <Box component="span" sx={{ typography: 'h6' }}>Nueva Asignación</Box>
-                <IconButton onClick={handleClose} sx={{ color: 'white' }}>
-                    <CloseIcon />
-                </IconButton>
+            <DialogTitle>
+                <Box display="flex" justifyContent="space-between" alignItems="center">
+                    <Typography variant="h6">Nueva Asignación</Typography>
+                    <IconButton onClick={handleClose} size="small">
+                        <CloseIcon />
+                    </IconButton>
+                </Box>
             </DialogTitle>
 
             <form onSubmit={handleSubmit}>
-                <DialogContent sx={{ pt: 3 }}>
+                <DialogContent>
                     {error && (
                         <Alert severity="error" sx={{ mb: 2 }}>
                             {error}
                         </Alert>
                     )}
-
+                    
                     {success && (
                         <Alert severity="success" sx={{ mb: 2 }}>
                             Asignación creada exitosamente
@@ -281,86 +224,79 @@ export default function Asignation({ open, onClose, users }) {
                     )}
 
                     <TextField
+                        fullWidth
+                        label="Título"
                         name="title"
-                        label="Título de la Asignación"
                         value={form.title}
                         onChange={handleChange}
-                        fullWidth
+                        margin="normal"
                         required
-                        sx={{ mb: 2 }}
                     />
 
                     <TextField
-                        name="description"
+                        fullWidth
                         label="Descripción"
+                        name="description"
                         value={form.description}
                         onChange={handleChange}
-                        fullWidth
-                        required
+                        margin="normal"
                         multiline
                         rows={4}
-                        sx={{ mb: 2 }}
+                        required
                     />
 
-                    <TextField
-                        name="dueDate"
-                        label="Fecha de Entrega (Límite a Tiempo)"
-                        type="datetime-local"
-                        value={form.dueDate}
-                        onChange={handleChange}
-                        fullWidth
-                        required
-                        InputLabelProps={{
-                            shrink: true,
-                        }}
-                        sx={{ mb: 2 }}
-                        helperText="Fecha límite para entrega a tiempo. Después de esta fecha, las entregas se marcarán como 'con retraso'"
-                    />
+                    <Box display="flex" gap={2} mt={2}>
+                        <TextField
+                            type="datetime-local"
+                            label="Fecha de Entrega"
+                            name="dueDate"
+                            value={form.dueDate}
+                            onChange={handleChange}
+                            fullWidth
+                            required
+                            InputLabelProps={{ shrink: true }}
+                        />
 
-                    <TextField
-                        name="closeDate"
-                        label="Fecha de Cierre Definitiva"
-                        type="datetime-local"
-                        value={form.closeDate}
-                        onChange={handleChange}
-                        fullWidth
-                        required
-                        InputLabelProps={{
-                            shrink: true,
-                        }}
-                        sx={{ mb: 2 }}
-                        helperText="Fecha límite definitiva. Después de esta fecha NO se podrán realizar entregas y se enviará reporte de mal desempeño"
-                        error={form.closeDate && form.dueDate && new Date(form.closeDate) < new Date(form.dueDate)}
-                    />
+                        <TextField
+                            type="datetime-local"
+                            label="Fecha de Cierre"
+                            name="closeDate"
+                            value={form.closeDate}
+                            onChange={handleChange}
+                            fullWidth
+                            required
+                            InputLabelProps={{ shrink: true }}
+                        />
+                    </Box>
 
                     <FormControlLabel
                         control={
                             <Switch
                                 checked={form.isGeneral}
                                 onChange={handleToggleGeneral}
-                                color="primary"
+                                name="isGeneral"
                             />
                         }
                         label="Asignación General (para todos los docentes)"
-                        sx={{ mb: 2 }}
+                        sx={{ mt: 2 }}
                     />
 
                     {!form.isGeneral && (
-                        <FormControl fullWidth sx={{ mb: 2 }}>
+                        <FormControl fullWidth margin="normal">
                             <InputLabel>Asignar a Docentes</InputLabel>
                             <Select
                                 multiple
-                                name="assignedTo"
                                 value={form.assignedTo}
                                 onChange={handleChange}
+                                name="assignedTo"
                                 renderValue={(selected) => (
                                     <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                                         {selected.map((value) => {
                                             const user = users.find(u => u._id === value);
                                             return (
-                                                <Chip 
-                                                    key={value} 
-                                                    label={user ? `${user.nombre} ${user.apellidoPaterno}` : value}
+                                                <Chip
+                                                    key={value}
+                                                    label={`${user?.nombre} ${user?.apellidoPaterno}`}
                                                     size="small"
                                                 />
                                             );
@@ -377,17 +313,17 @@ export default function Asignation({ open, onClose, users }) {
                         </FormControl>
                     )}
 
-                    <Box sx={{ mb: 2 }}>
-                        <label htmlFor="attachment-files">
+                    <Box mt={2}>
+                        <label htmlFor="file-upload">
                             <Input
-                                id="attachment-files"
+                                id="file-upload"
                                 type="file"
                                 multiple
                                 onChange={handleFileChange}
                             />
                             <Button
-                                variant="outlined"
                                 component="span"
+                                variant="outlined"
                                 startIcon={<AttachFile />}
                             >
                                 Adjuntar Archivos
@@ -396,13 +332,10 @@ export default function Asignation({ open, onClose, users }) {
 
                         {form.attachments.map((file, index) => (
                             <FilePreview key={index}>
-                                <Typography variant="body2" noWrap sx={{ flex: 1 }}>
-                                    {file.name}
-                                </Typography>
-                                <IconButton 
-                                    size="small" 
+                                <Typography noWrap>{file.name}</Typography>
+                                <IconButton
+                                    size="small"
                                     onClick={() => handleRemoveFile(index)}
-                                    color="error"
                                 >
                                     <Delete />
                                 </IconButton>
@@ -411,20 +344,20 @@ export default function Asignation({ open, onClose, users }) {
                     </Box>
                 </DialogContent>
 
-                <DialogActions sx={{ p: 3 }}>
-                    <Button 
-                        onClick={handleClose}
-                        disabled={loading}
-                    >
+                <DialogActions>
+                    <Button onClick={handleClose}>
                         Cancelar
                     </Button>
                     <Button
                         type="submit"
                         variant="contained"
                         disabled={loading}
-                        startIcon={loading && <CircularProgress size={20} />}
                     >
-                        {loading ? 'Creando...' : 'Crear Asignación'}
+                        {loading ? (
+                            <CircularProgress size={24} />
+                        ) : (
+                            'Crear Asignación'
+                        )}
                     </Button>
                 </DialogActions>
             </form>
