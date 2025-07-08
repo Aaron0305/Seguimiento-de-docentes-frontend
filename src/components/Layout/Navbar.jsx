@@ -11,12 +11,17 @@ import {
   MenuItem,
   Container,
   Fade,
-  Divider
+  Divider,
+  Badge
 } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
+import NotificationsIcon from '@mui/icons-material/Notifications';
 import { AuthContext } from '../../contexts/AuthContext';
 import AdminAccessDialog from '../Admin/AdminAccessDialog';
+import { io } from 'socket.io-client';
+import useSound from 'use-sound';
+import notificationSound from '../../assets/notification.mp3';
 
 import { styled } from '@mui/material/styles';
 
@@ -85,6 +90,12 @@ export default function Navbar() {
   const [scrollTrigger, setScrollTrigger] = useState(false);
   const [adminDialogOpen, setAdminDialogOpen] = useState(false);
   
+  // Agregando estados para notificaciones
+  const [notificationAnchorEl, setNotificationAnchorEl] = useState(null);
+  const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [playNotification] = useSound(notificationSound);
+  
   // Efecto para detectar el scroll y cambiar el estado del navbar
   useEffect(() => {
     const handleScroll = () => {
@@ -100,6 +111,22 @@ export default function Navbar() {
       window.removeEventListener('scroll', handleScroll);
     };
   }, []);
+
+  // Efecto para las notificaciones
+  useEffect(() => {
+    if (!currentUser) return;
+
+    const socket = io(import.meta.env.VITE_API_URL || 'http://localhost:5000');
+    socket.emit('authenticate', currentUser._id);
+
+    socket.on('notification', (notification) => {
+      setNotifications(prev => [notification, ...prev]);
+      setUnreadCount(prev => prev + 1);
+      playNotification();
+    });
+
+    return () => socket.disconnect();
+  }, [currentUser]);
   
   const handleMenu = (event) => {
     setAnchorEl(event.currentTarget);
@@ -140,6 +167,23 @@ export default function Navbar() {
     } catch (error) {
       console.error(error);
     }
+  };
+  
+  // Manejadores para notificaciones
+  const handleNotificationMenu = (event) => {
+    setNotificationAnchorEl(event.currentTarget);
+    setUnreadCount(0);
+  };
+
+  const handleNotificationClose = () => {
+    setNotificationAnchorEl(null);
+  };
+
+  const handleNotificationClick = (notification) => {
+    if (notification.type === 'NEW_ASSIGNMENT') {
+      navigate(`/dashboard/assignments/${notification.data.assignmentId}`);
+    }
+    handleNotificationClose();
   };
   
   // Función para verificar si una ruta está activa
@@ -265,6 +309,76 @@ export default function Navbar() {
                     Inicio
                   </NavButton>
                 </Fade>
+
+                {/* Botón de notificaciones */}
+                <Fade in={true} timeout={1100}>
+                  <IconButton
+                    size="large"
+                    onClick={handleNotificationMenu}
+                    sx={{ 
+                      color: '#ffffff',
+                      backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                      border: '1px solid rgba(255, 255, 255, 0.2)',
+                      '&:hover': {
+                        backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                      }
+                    }}
+                  >
+                    <Badge badgeContent={unreadCount} color="error">
+                      <NotificationsIcon />
+                    </Badge>
+                  </IconButton>
+                </Fade>
+
+                {/* Menú de notificaciones */}
+                <Menu
+                  anchorEl={notificationAnchorEl}
+                  open={Boolean(notificationAnchorEl)}
+                  onClose={handleNotificationClose}
+                  PaperProps={{
+                    sx: {
+                      bgcolor: 'rgba(0, 51, 102, 0.95)',
+                      backgroundImage: 'linear-gradient(135deg, rgba(0, 51, 102, 0.95) 0%, rgba(0, 76, 153, 0.95) 100%)',
+                      color: '#ffffff',
+                      boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
+                      mt: 1,
+                      border: '1px solid rgba(255, 215, 0, 0.3)',
+                      borderRadius: '8px',
+                      backdropFilter: 'blur(8px)',
+                      maxHeight: 300,
+                      width: 320,
+                    }
+                  }}
+                >
+                  {notifications.length === 0 ? (
+                    <MenuItem disabled sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
+                      No hay notificaciones
+                    </MenuItem>
+                  ) : (
+                    notifications.map((notification, index) => (
+                      <MenuItem
+                        key={index}
+                        onClick={() => handleNotificationClick(notification)}
+                        sx={{
+                          whiteSpace: 'normal',
+                          display: 'block',
+                          py: 1,
+                          '&:hover': { bgcolor: 'rgba(255, 215, 0, 0.1)' },
+                        }}
+                      >
+                        <Typography variant="subtitle2" fontWeight="bold" sx={{ color: '#FFD700' }}>
+                          {notification.title}
+                        </Typography>
+                        <Typography variant="body2">
+                          {notification.message}
+                        </Typography>
+                        <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
+                          {new Date(notification.timestamp).toLocaleString()}
+                        </Typography>
+                      </MenuItem>
+                    ))
+                  )}
+                </Menu>
 
                 <Fade in={true} timeout={1200}>
                   <AdminButton

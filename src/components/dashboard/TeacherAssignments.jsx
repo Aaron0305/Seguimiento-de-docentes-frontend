@@ -109,7 +109,7 @@ const TeacherAssignments = () => {
             setLoading(true);
             setError('');
             
-            const params = {
+            let params = {
                 status: statusFilter,
                 search: searchTerm,
                 sort: sortBy,
@@ -117,10 +117,27 @@ const TeacherAssignments = () => {
                 limit: 6
             };
 
+            // Si el filtro es 'vencido', cambiamos la lógica
+            if (statusFilter === 'vencido') {
+                params.status = 'pending';
+                params.overdue = true;
+            }
+
             const response = await getTeacherAssignments(params);
             
             if (response.success) {
-                setAssignments(response.assignments || []);
+                let filteredAssignments = response.assignments || [];
+                
+                // Si el filtro es 'vencido', filtramos manualmente las asignaciones vencidas
+                if (statusFilter === 'vencido') {
+                    filteredAssignments = filteredAssignments.filter(assignment => {
+                        const now = new Date();
+                        const dueDate = new Date(assignment.dueDate);
+                        return now > dueDate;
+                    });
+                }
+
+                setAssignments(filteredAssignments);
                 setTotalPages(response.pagination?.totalPages || 1);
             } else {
                 setError('Server response was not successful');
@@ -312,25 +329,29 @@ const TeacherAssignments = () => {
                             icon: <AssignmentIcon sx={{ fontSize: 40 }} />, 
                             value: stats.total, 
                             label: 'Total',
-                            color: 'primary'
+                            color: 'primary',
+                            filterValue: 'all'
                         },
                         { 
                             icon: <Schedule sx={{ fontSize: 40 }} />, 
                             value: stats.pending, 
                             label: 'Pendiente',
-                            color: 'warning'
+                            color: 'warning',
+                            filterValue: 'pending'
                         },
                         { 
                             icon: <CheckCircle sx={{ fontSize: 40 }} />, 
                             value: stats.completed, 
                             label: 'Completado',
-                            color: 'success'
+                            color: 'success',
+                            filterValue: 'completed'
                         },
                         { 
                             icon: <Warning sx={{ fontSize: 40 }} />, 
                             value: stats.overdue, 
                             label: 'Vencido',
-                            color: 'error'
+                            color: 'error',
+                            filterValue: 'vencido'
                         }
                     ].map((stat, index) => (
                         <Grid item xs={6} sm={3} key={index}>
@@ -357,12 +378,20 @@ const TeacherAssignments = () => {
                                 }}
                                 whileHover="hover"
                             >
-                                <Card sx={{ 
-                                    height: '100%', 
-                                    borderRadius: 3,
-                                    boxShadow: theme.shadows[4],
-                                    background: `linear-gradient(135deg, ${theme.palette.background.paper} 0%, ${theme.palette.grey[100]} 100%)`
-                                }}>
+                                <Card 
+                                    onClick={() => {
+                                        setStatusFilter(stat.filterValue);
+                                        setPage(1);
+                                    }}
+                                    sx={{ 
+                                        height: '100%', 
+                                        borderRadius: 3,
+                                        boxShadow: theme.shadows[4],
+                                        background: `linear-gradient(135deg, ${theme.palette.background.paper} 0%, ${theme.palette.grey[100]} 100%)`,
+                                        cursor: 'pointer',
+                                        border: statusFilter === stat.filterValue ? `2px solid ${theme.palette[stat.color].main}` : 'none'
+                                    }}
+                                >
                                     <CardContent sx={{ 
                                         textAlign: 'center', 
                                         py: 3,
@@ -384,7 +413,7 @@ const TeacherAssignments = () => {
                                             color={stat.color} 
                                             max={999}
                                             animate={{
-                                                scale: [1, 1.1, 1],
+                                                scale: [1, 1.1, 1]
                                             }}
                                             transition={{
                                                 duration: 1.5,
@@ -623,7 +652,7 @@ const TeacherAssignments = () => {
                         <TableBody>
                             {assignments.map((assignment) => {
                                 const isOverdue = assignment.status === 'pending' && new Date(assignment.dueDate) < new Date();
-                                const status = isOverdue ? 'overdue' : assignment.status;
+                                const status = isOverdue ? 'vencidoimage.png' : assignment.status;
                                 const now = new Date();
                                 const closeDate = new Date(assignment.closeDate);
                                 const isClosed = now > closeDate;
