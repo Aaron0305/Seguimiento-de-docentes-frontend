@@ -146,12 +146,15 @@ const AnimatedGradientBar = styled(Box)(({ theme }) => ({
 
 // Avatar responsive con animaciones
 const ResponsiveAvatar = styled(Avatar)(({ theme }) => ({
-  width: 80,
-  height: 80,
+  width: 120,
+  height: 120,
   border: '3px solid white',
   boxShadow: '0 15px 30px rgba(102, 126, 234, 0.3)',
   transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
   animation: `${floatingAnimation} 6s ease-in-out infinite`,
+  objectFit: 'cover',
+  backgroundPosition: 'center',
+  backgroundSize: 'cover',
   
   '&:hover': {
     transform: 'scale(1.1) rotate(5deg)',
@@ -159,51 +162,24 @@ const ResponsiveAvatar = styled(Avatar)(({ theme }) => ({
   },
   
   [theme.breakpoints.up('sm')]: {
-    width: 100,
-    height: 100,
+    width: 140,
+    height: 140,
     border: '4px solid white',
   },
   
   [theme.breakpoints.up('md')]: {
-    width: 120,
-    height: 120,
+    width: 160,
+    height: 160,
     border: '5px solid white',
   },
   
   [theme.breakpoints.up('lg')]: {
-    width: 140,
-    height: 140,
+    width: 180,
+    height: 180,
   }
 }));
 
-// Indicador de estado online
-const OnlineStatusIndicator = styled(Box)(({ theme }) => ({
-  position: 'absolute',
-  bottom: 4,
-  right: 4,
-  width: 16,
-  height: 16,
-  backgroundColor: '#10b981',
-  borderRadius: '50%',
-  border: '2px solid white',
-  animation: `${pulseGlow} 2s infinite`,
-  
-  [theme.breakpoints.up('sm')]: {
-    width: 20,
-    height: 20,
-    bottom: 6,
-    right: 6,
-    border: '3px solid white',
-  },
-  
-  [theme.breakpoints.up('md')]: {
-    width: 24,
-    height: 24,
-    bottom: 8,
-    right: 8,
-    border: '4px solid white',
-  }
-}));
+// Eliminar el OnlineStatusIndicator ya que no lo usaremos
 
 // Tarjetas de información adaptativas
 const InfoCardAdaptive = styled(Paper)(({ theme }) => ({
@@ -513,7 +489,7 @@ const ActiveSession = () => {
                   '&:last-child': { pb: { xs: 2, sm: 3, md: 4 } }
                 }}
               >
-                <Grid container spacing={{ xs: 2, sm: 3, md: 4 }} alignItems="flex-start">
+                <Grid container spacing={{ xs: 2, sm: 3, md: 4 }} alignItems="center">
                   {/* Avatar */}
                   <Grid 
                     item 
@@ -522,8 +498,9 @@ const ActiveSession = () => {
                     md={4} 
                     display="flex" 
                     justifyContent="center"
+                    alignItems="center"
                   >
-                    <Box position="relative">
+                    <Box>
                       <ResponsiveAvatar
                         src={currentUser?.fotoPerfil && currentUser.fotoPerfil !== ''
                           ? `http://localhost:3001/uploads/perfiles/${currentUser.fotoPerfil}?t=${Date.now()}`
@@ -532,12 +509,14 @@ const ActiveSession = () => {
                         alt={`Foto de perfil de ${currentUser?.nombre || 'Usuario'}`}
                         sx={{ 
                           background: 'linear-gradient(135deg, #667eea, #764ba2)',
-                          fontSize: { xs: '1.5rem', sm: '1.75rem', md: '2rem' }
+                          fontSize: { xs: '1.5rem', sm: '1.75rem', md: '2rem' },
+                          display: 'flex',
+                          justifyContent: 'center',
+                          alignItems: 'center'
                         }}
                       >
                         {currentUser?.nombre?.charAt(0) || 'U'}
                       </ResponsiveAvatar>
-                      <OnlineStatusIndicator />
                     </Box>
                   </Grid>
 

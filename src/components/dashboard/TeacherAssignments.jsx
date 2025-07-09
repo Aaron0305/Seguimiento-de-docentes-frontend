@@ -30,7 +30,8 @@ import {
     TableBody,
     TableCell,
     TableHead,
-    TableRow
+    TableRow,
+    TableContainer
 } from '@mui/material';
 import {
     Assignment as AssignmentIcon,
@@ -46,11 +47,12 @@ import {
     CalendarToday,
     ExpandMore,
     ExpandLess,
-    FileDownload
+    FileDownload,
+    Person
 } from '@mui/icons-material';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@mui/material/styles';
-import { getTeacherAssignmentStats, getTeacherAssignments, markAssignmentCompleted } from '../../services/assignmentService';
+import { getTeacherAssignmentStats, getTeacherAssignments, markAssignmentCompleted, getAllTeachersStats } from '../../services/assignmentService';
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
 
@@ -64,6 +66,7 @@ const TeacherAssignments = () => {
     // Estados principales
     const [assignments, setAssignments] = useState([]);
     const [stats, setStats] = useState(null);
+    const [allTeachersStats, setAllTeachersStats] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     
@@ -86,6 +89,7 @@ const TeacherAssignments = () => {
     // Load stats on mount
     useEffect(() => {
         loadStats();
+        loadAllTeachersStats();
     }, []);
 
     // Load assignments when filters change
@@ -109,7 +113,7 @@ const TeacherAssignments = () => {
             setLoading(true);
             setError('');
             
-            let params = {
+            const params = {
                 status: statusFilter,
                 search: searchTerm,
                 sort: sortBy,
@@ -117,27 +121,10 @@ const TeacherAssignments = () => {
                 limit: 6
             };
 
-            // Si el filtro es 'vencido', cambiamos la lógica
-            if (statusFilter === 'vencido') {
-                params.status = 'pending';
-                params.overdue = true;
-            }
-
             const response = await getTeacherAssignments(params);
             
             if (response.success) {
-                let filteredAssignments = response.assignments || [];
-                
-                // Si el filtro es 'vencido', filtramos manualmente las asignaciones vencidas
-                if (statusFilter === 'vencido') {
-                    filteredAssignments = filteredAssignments.filter(assignment => {
-                        const now = new Date();
-                        const dueDate = new Date(assignment.dueDate);
-                        return now > dueDate;
-                    });
-                }
-
-                setAssignments(filteredAssignments);
+                setAssignments(response.assignments || []);
                 setTotalPages(response.pagination?.totalPages || 1);
             } else {
                 setError('Server response was not successful');
@@ -151,10 +138,22 @@ const TeacherAssignments = () => {
         }
     };
 
+    const loadAllTeachersStats = async () => {
+        try {
+            const response = await getAllTeachersStats();
+            if (response.success) {
+                setAllTeachersStats(response.stats);
+            }
+        } catch (error) {
+            console.error('Error loading all teachers stats:', error);
+        }
+    };
+
     const handleRefresh = () => {
         setIsRefreshing(true);
         loadAssignments();
         loadStats();
+        loadAllTeachersStats();
     };
 
     const handleCompleteAssignment = async (assignmentId) => {
@@ -320,7 +319,69 @@ const TeacherAssignments = () => {
     }
 
     return (
-        <Box sx={{ p: { xs: 1, sm: 2, md: 3 } }}>
+        <Box sx={{ p: 3 }}>
+            {/* Estadísticas de todos los profesores */}
+            <Paper sx={{ mb: 3, p: 2 }}>
+                <Typography variant="h6" gutterBottom>
+                    Estadísticas de Docentes
+                </Typography>
+                <TableContainer>
+                    <Table>
+                        <TableHead>
+                            <TableRow>
+                                <TableCell align="center">Completadas</TableCell>
+                                <TableCell align="center">Pendientes</TableCell>
+                                <TableCell align="center">Vencidas</TableCell>
+                                <TableCell align="center">Total</TableCell>
+                            </TableRow>
+                        </TableHead>
+                        <TableBody>
+                            {allTeachersStats.map((teacherStat) => (
+                                <TableRow key={teacherStat.teacherId}>
+                                    <TableCell>
+                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                            <Person />
+                                            <Typography>{teacherStat.teacherName}</Typography>
+                                        </Box>
+                                    </TableCell>
+                                    <TableCell align="center">
+                                        <Chip 
+                                            label={teacherStat.stats.completed}
+                                            color="success"
+                                            size="small"
+                                        />
+                                    </TableCell>
+                                    <TableCell align="center">
+                                        <Chip 
+                                            label={teacherStat.stats.pending}
+                                            color="primary"
+                                            size="small"
+                                        />
+                                    </TableCell>
+                                    <TableCell align="center">
+                                        <Chip 
+                                            label={teacherStat.stats.overdue}
+                                            color="error"
+                                            size="small"
+                                        />
+                                    </TableCell>
+                                    <TableCell align="center">
+                                        <Chip 
+                                            label={teacherStat.stats.total}
+                                            color="default"
+                                            size="small"
+                                        />
+                                    </TableCell>
+                                    <TableCell align="center">
+                                        {new Date(teacherStat.lastUpdated).toLocaleString()}
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </TableContainer>
+            </Paper>
+
             {/* Stats cards with animations */}
             {stats && (
                 <Grid container spacing={2} sx={{ mb: 3 }}>
@@ -454,121 +515,6 @@ const TeacherAssignments = () => {
                 </Grid>
             )}
 
-            {/* Filter controls with expandable animation */}
-            <motion.div
-                initial={{ opacity: 0, y: -20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3 }}
-            >
-                <Paper sx={{ 
-                    p: 2, 
-                    mb: 3,
-                    borderRadius: 3,
-                    boxShadow: theme.shadows[2],
-                    background: `linear-gradient(to bottom, ${theme.palette.background.paper}, ${theme.palette.grey[50]})`
-                }}>
-                    <Box 
-                        display="flex" 
-                        alignItems="center" 
-                        justifyContent="space-between"
-                        sx={{ cursor: 'pointer' }}
-                        onClick={() => setExpandedFilters(!expandedFilters)}
-                    >
-                        <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center' }}>
-                            <FilterList sx={{ mr: 1 }} />
-                            Filtros
-                        </Typography>
-                        {expandedFilters ? <ExpandLess /> : <ExpandMore />}
-                    </Box>
-                    
-                    <Slide direction="down" in={expandedFilters} mountOnEnter unmountOnExit>
-                        <Box sx={{ mt: 2 }}>
-                            <Grid container spacing={2} alignItems="center">
-                                <Grid item xs={12} sm={6} md={3}>
-                                    <TextField
-                                        select
-                                        fullWidth
-                                        label="Estado"
-                                        value={statusFilter}
-                                        onChange={(e) => setStatusFilter(e.target.value)}
-                                        size="small"
-                                        variant="outlined"
-                                    >
-                                        <MenuItem value="all">Todos</MenuItem>
-                                        <MenuItem value="pending">Pendiente</MenuItem>
-                                        <MenuItem value="completed">Completado</MenuItem>
-                                    </TextField>
-                                </Grid>
-                                <Grid item xs={12} sm={6} md={4}>
-                                    <TextField
-                                        fullWidth
-                                        label="Buscar asignaciones"
-                                        value={searchTerm}
-                                        onChange={(e) => setSearchTerm(e.target.value)}
-                                        size="small"
-                                        variant="outlined"
-                                        InputProps={{
-                                            startAdornment: (
-                                                <Search sx={{ 
-                                                    mr: 1, 
-                                                    color: 'text.secondary',
-                                                    transition: 'all 0.3s',
-                                                    transform: searchTerm ? 'scale(1.2)' : 'scale(1)'
-                                                }} />
-                                            )
-                                        }}
-                                    />
-                                </Grid>
-                                <Grid item xs={12} sm={6} md={3}>
-                                    <TextField
-                                        select
-                                        fullWidth
-                                        label="Ordenar por"
-                                        value={sortBy}
-                                        onChange={(e) => setSortBy(e.target.value)}
-                                        size="small"
-                                        variant="outlined"
-                                    >
-                                        <MenuItem value="-createdAt">Más recientes</MenuItem>
-                                        <MenuItem value="createdAt">Más antiguas</MenuItem>
-                                        <MenuItem value="dueDate">Fecha de Entrega</MenuItem>
-                                        <MenuItem value="title">Título A-Z</MenuItem>
-                                    </TextField>
-                                </Grid>
-                                <Grid item xs={12} sm={6} md={2}>
-                                    <AnimatedButton
-                                        fullWidth
-                                        variant="contained"
-                                        onClick={handleRefresh}
-                                        startIcon={<Refresh />}
-                                        disabled={loading || isRefreshing}
-                                        sx={{
-                                            background: `linear-gradient(45deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
-                                            boxShadow: theme.shadows[2],
-                                            '&:hover': {
-                                                boxShadow: theme.shadows[4],
-                                            }
-                                        }}
-                                        whileHover={{ scale: 1.02 }}
-                                        whileTap={{ scale: 0.98 }}
-                                        animate={{
-                                            rotate: isRefreshing ? 360 : 0,
-                                            transition: isRefreshing ? { 
-                                                repeat: Infinity, 
-                                                duration: 1, 
-                                                ease: "linear" 
-                                            } : {}
-                                        }}
-                                    >
-                                        {isRefreshing ? 'Actualizando...' : 'Actualizar'}
-                                    </AnimatedButton>
-                                </Grid>
-                            </Grid>
-                        </Box>
-                    </Slide>
-                </Paper>
-            </motion.div>
-
             {/* Error message with animation */}
             <AnimatePresence>
                 {error && (
@@ -652,7 +598,7 @@ const TeacherAssignments = () => {
                         <TableBody>
                             {assignments.map((assignment) => {
                                 const isOverdue = assignment.status === 'pending' && new Date(assignment.dueDate) < new Date();
-                                const status = isOverdue ? 'vencidoimage.png' : assignment.status;
+                                const status = isOverdue ? 'vencido' : assignment.status;
                                 const now = new Date();
                                 const closeDate = new Date(assignment.closeDate);
                                 const isClosed = now > closeDate;

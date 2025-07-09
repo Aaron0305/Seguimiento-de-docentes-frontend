@@ -132,6 +132,17 @@ export const getAssignmentById = async (assignmentId) => {
     }
 };
 
+// Obtener estadísticas de todos los profesores
+export const getAllTeachersStats = async () => {
+    try {
+        const response = await axios.get('/api/assignments/teachers/stats');
+        return response.data;
+    } catch (error) {
+        console.error('Error getting all teachers stats:', error);
+        throw error;
+    }
+};
+
 export default {
     getTeacherAssignmentStats,
     getTeacherAssignments,
