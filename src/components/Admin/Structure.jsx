@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Box, Typography, Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, IconButton, Dialog, DialogTitle, DialogContent, DialogActions, TextField, CircularProgress, Avatar, Chip, Card, CardContent, Grid, Fade, Slide, Zoom, InputAdornment } from '@mui/material';
-import { Edit, Delete, Menu as MenuIcon, Close as CloseIcon, PersonAdd, Refresh, Search, FilterList, Visibility, MoreVert, Assignment } from '@mui/icons-material';
+import { Edit, Delete, Menu as MenuIcon, Close as CloseIcon, PersonAdd, Refresh, Search, FilterList, Visibility, MoreVert, Assignment, Assessment } from '@mui/icons-material';
 import Drawer from '@mui/material/Drawer';
 import { styled, keyframes } from '@mui/material/styles';
 import Asignation from './Asignation';
+import Stadistics from './Stadistics';
 import AuthDebugger from '../Debug/AuthDebugger';
+import StatsDebugger from '../Debug/StatsDebugger';
 
 // Animaciones personalizadas
 const pulse = keyframes`
@@ -103,6 +105,10 @@ export default function Structure() {
     const [searchFocused, setSearchFocused] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
     const [asignationOpen, setAsignationOpen] = useState(false);
+    const [stadisticsOpen, setStadisticsOpen] = useState(false);
+    const [teacherStats, setTeacherStats] = useState({});
+    const [loadingStats, setLoadingStats] = useState(true);
+    const [statsError, setStatsError] = useState(null);
 
     // Función optimizada para obtener usuarios con cache
     const fetchUsers = useCallback(async (force = false) => {
@@ -139,10 +145,98 @@ export default function Structure() {
         }
     }, [users.length]);
 
-    // Cargar usuarios solo una vez al montar
+    // Función para obtener estadísticas
+    const fetchTeacherStats = useCallback(async () => {
+        console.log('Iniciando fetchTeacherStats');
+        try {
+            setLoadingStats(true);
+            setStatsError(null);
+            
+            const token = localStorage.getItem('token');
+            if (!token) {
+                throw new Error('No hay token de autenticación');
+            }
+            
+            console.log('Realizando petición a la API de estadísticas');
+            const response = await fetch('http://localhost:3001/api/stats/teachers', {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            console.log('Respuesta de la API:', response.status);
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.message || `Error ${response.status}: ${response.statusText}`);
+            }
+
+            const data = await response.json();
+            console.log('Datos recibidos:', data);
+            
+            // Convertir array de estadísticas a objeto para fácil acceso
+            const statsMap = {};
+            if (Array.isArray(data)) {
+                data.forEach(stat => {
+                    if (stat && stat.teacherId) {
+                        statsMap[stat.teacherId] = {
+                            teacherName: stat.teacherName,
+                            email: stat.email,
+                            total: stat.total || 0,
+                            completed: stat.completed || 0,
+                            pending: stat.pending || 0,
+                            overdue: stat.overdue || 0
+                        };
+                    }
+                });
+            }
+            
+            console.log('StatsMap procesado:', statsMap);
+            setTeacherStats(statsMap);
+            setStatsError(null);
+        } catch (error) {
+            console.error('Error al obtener estadísticas:', error);
+            setStatsError(error.message);
+        } finally {
+            setLoadingStats(false);
+        }
+    }, []);
+
+    // Función para actualizar estadísticas de un profesor específico
+    const updateTeacherStats = useCallback(async (teacherId) => {
+        try {
+            const response = await fetch(`http://localhost:3001/api/stats/teachers/${teacherId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    // Incluir token de autenticación si es necesario
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                }
+            });
+            
+            if (!response.ok) {
+                throw new Error('Error al actualizar estadísticas');
+            }
+            
+            // Actualizar las estadísticas localmente
+            await fetchTeacherStats();
+        } catch (error) {
+            console.error('Error:', error);
+            // Manejar el error según sea necesario
+        }
+    }, [fetchTeacherStats]);
+
+    // Cargar usuarios y estadísticas junto con los usuarios
     useEffect(() => {
-        fetchUsers();
-    }, [fetchUsers]);
+        const loadData = async () => {
+            await Promise.all([
+                fetchUsers(),
+                fetchTeacherStats()
+            ]);
+        };
+        loadData();
+    }, [fetchUsers, fetchTeacherStats]);
 
     // Función de búsqueda mejorada
     const filteredUsers = useMemo(() => {
@@ -223,9 +317,20 @@ export default function Structure() {
         setReporteDrawerOpen(false);
     }, []);
 
-    const handleRefresh = useCallback(() => {
-        fetchUsers(true);
-    }, [fetchUsers]);
+    // Función para refrescar datos
+    const handleRefresh = useCallback(async () => {
+        setRefreshing(true);
+        try {
+            await Promise.all([
+                fetchUsers(true),
+                fetchTeacherStats()
+            ]);
+        } catch (error) {
+            console.error('Error al refrescar datos:', error);
+        } finally {
+            setRefreshing(false);
+        }
+    }, [fetchUsers, fetchTeacherStats]);
 
     const handleOpenAsignation = useCallback(() => {
         setAsignationOpen(true);
@@ -234,6 +339,15 @@ export default function Structure() {
 
     const handleCloseAsignation = useCallback(() => {
         setAsignationOpen(false);
+    }, []);
+
+    const handleOpenStadistics = useCallback(() => {
+        setStadisticsOpen(true);
+        setMobileDrawerOpen(false);
+    }, []);
+
+    const handleCloseStadistics = useCallback(() => {
+        setStadisticsOpen(false);
     }, []);
 
     // Componente de búsqueda mejorado
@@ -279,11 +393,61 @@ export default function Structure() {
         </Box>
     );
 
+    // Renderizar las estadísticas en la tabla
+    const renderStats = useCallback((user) => {
+        const stats = teacherStats[user.numeroControl] || {
+            total: 0,
+            completed: 0,
+            pending: 0,
+            overdue: 0
+        };
+
+        return (
+            <>
+                <TableCell align="center">
+                    <Chip 
+                        label={stats.total} 
+                        color="primary" 
+                        variant="outlined"
+                        size="small"
+                    />
+                </TableCell>
+                <TableCell align="center">
+                    <Chip 
+                        label={stats.completed} 
+                        color="success" 
+                        variant="outlined"
+                        size="small"
+                    />
+                </TableCell>
+                <TableCell align="center">
+                    <Chip 
+                        label={stats.pending} 
+                        color="warning" 
+                        variant="outlined"
+                        size="small"
+                    />
+                </TableCell>
+                <TableCell align="center">
+                    <Chip 
+                        label={stats.overdue} 
+                        color="error" 
+                        variant="outlined"
+                        size="small"
+                    />
+                </TableCell>
+            </>
+        );
+    }, [teacherStats]);
+
     return (
         <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', bgcolor: '#f8fafc' }}>
             {/* Debugger de autenticación */}
             <AuthDebugger />
             
+            {/* Debugger de estadísticas */}
+            <StatsDebugger />
+
             {/* Contenido principal */}
             <Box sx={{ 
                 flex: 1, 
@@ -397,13 +561,17 @@ export default function Structure() {
                                         <TableCell sx={{ fontWeight: 'bold', color: 'primary.main' }}>Nombre Completo</TableCell>
                                         <TableCell sx={{ fontWeight: 'bold', color: 'primary.main' }}>Carrera</TableCell>
                                         <TableCell sx={{ fontWeight: 'bold', color: 'primary.main' }}>Email</TableCell>
+                                        <TableCell align="center" sx={{ fontWeight: 'bold', color: 'primary.main' }}>Total</TableCell>
+                                        <TableCell align="center" sx={{ fontWeight: 'bold', color: 'primary.main' }}>Completadas</TableCell>
+                                        <TableCell align="center" sx={{ fontWeight: 'bold', color: 'primary.main' }}>Pendientes</TableCell>
+                                        <TableCell align="center" sx={{ fontWeight: 'bold', color: 'primary.main' }}>Vencidas</TableCell>
                                         <TableCell sx={{ fontWeight: 'bold', color: 'primary.main' }}>Acciones</TableCell>
                                     </TableRow>
                                 </TableHead>
                                 <TableBody>
                                     {loading ? (
                                         <TableRow>
-                                            <TableCell colSpan={6} align="center" sx={{ py: 8 }}>
+                                            <TableCell colSpan={10} align="center" sx={{ py: 8 }}>
                                                 <CircularProgress size={60} thickness={4} />
                                                 <Typography sx={{ mt: 2, fontSize: '1.1rem' }}>
                                                     Cargando usuarios...
@@ -412,7 +580,7 @@ export default function Structure() {
                                         </TableRow>
                                     ) : error ? (
                                         <TableRow>
-                                            <TableCell colSpan={6} align="center" sx={{ py: 8 }}>
+                                            <TableCell colSpan={10} align="center" sx={{ py: 8 }}>
                                                 <Typography color="error" variant="h6">
                                                     ⚠️ Error: {error}
                                                 </Typography>
@@ -427,100 +595,116 @@ export default function Structure() {
                                         </TableRow>
                                     ) : filteredUsers.length === 0 ? (
                                         <TableRow>
-                                            <TableCell colSpan={6} align="center" sx={{ py: 8 }}>
+                                            <TableCell colSpan={10} align="center" sx={{ py: 8 }}>
                                                 <Typography variant="h6" color="text.secondary">
                                                     {searchTerm ? '🔍 No se encontraron usuarios' : '👥 No hay usuarios registrados'}
                                                 </Typography>
                                             </TableCell>
                                         </TableRow>
                                     ) : (
-                                        filteredUsers.map((user, index) => (
-                                            <Fade in={true} timeout={300 + index * 100} key={user._id}>
-                                                <AnimatedTableRow>
-                                                    <TableCell>
-                                                        <StyledAvatar
-                                                            src={user.fotoPerfil 
-                                                                ? `http://localhost:3001/uploads/perfiles/${user.fotoPerfil}?t=${Date.now()}`
-                                                                : 'http://localhost:3001/uploads/perfiles/2138822222222_1749571359362.png'
-                                                            }
-                                                            alt={`Foto de perfil de ${user.nombreCompleto}`}
-                                                            onError={(e) => {
-                                                                if (!e.target.src.includes('2138822222222_1749571359362.png')) {
-                                                                    e.target.onerror = null;
-                                                                    e.target.src = `http://localhost:3001/uploads/perfiles/2138822222222_1749571359362.png?t=${Date.now()}`;
+                                        filteredUsers.map((user) => {
+                                            return (
+                                                <Fade in={true} timeout={300} key={user._id}>
+                                                    <AnimatedTableRow>
+                                                        <TableCell>
+                                                            <StyledAvatar
+                                                                src={user.fotoPerfil 
+                                                                    ? `http://localhost:3001/uploads/perfiles/${user.fotoPerfil}?t=${Date.now()}`
+                                                                    : 'http://localhost:3001/uploads/perfiles/2138822222222_1749571359362.png'
                                                                 }
-                                                            }}
-                                                        />
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        <Typography variant="body1" sx={{ fontWeight: 'bold', color: 'primary.main' }}>
-                                                            {user.numeroControl}
-                                                        </Typography>
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        <Typography variant="body1" sx={{ fontWeight: 500 }}>
-                                                            {`${user.nombre} ${user.apellidoPaterno} ${user.apellidoMaterno}`}
-                                                        </Typography>
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        <Chip 
-                                                            label={typeof user.carrera === 'object' ? user.carrera.nombre : user.carrera} 
-                                                            size="small" 
-                                                            color="secondary"
-                                                            sx={{ fontWeight: 'bold' }}
-                                                        />
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        <Typography variant="body2" color="text.secondary">
-                                                            {user.email}
-                                                        </Typography>
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        <Box sx={{ display: 'flex', gap: 1 }}>
-                                                            <IconButton 
-                                                                onClick={() => handleSelectStudent(user)}
-                                                                sx={{ 
-                                                                    color: 'primary.main',
-                                                                    '&:hover': { 
-                                                                        backgroundColor: 'rgba(25, 118, 210, 0.1)',
-                                                                        transform: 'scale(1.1)',
-                                                                    },
-                                                                    transition: 'all 0.2s ease',
+                                                                alt={`Foto de perfil de ${user.nombreCompleto}`}
+                                                                onError={(e) => {
+                                                                    if (!e.target.src.includes('2138822222222_1749571359362.png')) {
+                                                                        e.target.onerror = null;
+                                                                        e.target.src = `http://localhost:3001/uploads/perfiles/2138822222222_1749571359362.png?t=${Date.now()}`;
+                                                                    }
                                                                 }}
-                                                            >
-                                                                <Visibility />
-                                                            </IconButton>
-                                                            <IconButton 
-                                                                onClick={() => handleOpenDialog(user)}
-                                                                sx={{ 
-                                                                    color: 'warning.main',
-                                                                    '&:hover': { 
-                                                                        backgroundColor: 'rgba(237, 108, 2, 0.1)',
-                                                                        transform: 'scale(1.1)',
-                                                                    },
-                                                                    transition: 'all 0.2s ease',
-                                                                }}
-                                                            >
-                                                                <Edit />
-                                                            </IconButton>
-                                                            <IconButton 
-                                                                onClick={() => handleDelete(user._id)} 
-                                                                sx={{ 
-                                                                    color: 'error.main',
-                                                                    '&:hover': { 
-                                                                        backgroundColor: 'rgba(211, 47, 47, 0.1)',
-                                                                        transform: 'scale(1.1)',
-                                                                    },
-                                                                    transition: 'all 0.2s ease',
-                                                                }}
-                                                            >
-                                                                <Delete />
-                                                            </IconButton>
-                                                        </Box>
-                                                    </TableCell>
-                                                </AnimatedTableRow>
-                                            </Fade>
-                                        ))
+                                                            />
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            <Typography variant="body1" sx={{ fontWeight: 'bold', color: 'primary.main' }}>
+                                                                {user.numeroControl}
+                                                            </Typography>
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            <Typography variant="body1" sx={{ fontWeight: 500 }}>
+                                                                {`${user.nombre} ${user.apellidoPaterno} ${user.apellidoMaterno}`}
+                                                            </Typography>
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            <Chip 
+                                                                label={typeof user.carrera === 'object' ? user.carrera.nombre : user.carrera} 
+                                                                size="small" 
+                                                                color="secondary"
+                                                                sx={{ fontWeight: 'bold' }}
+                                                            />
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            <Typography variant="body2" color="text.secondary">
+                                                                {user.email}
+                                                            </Typography>
+                                                        </TableCell>
+                                                        {renderStats(user)}
+                                                        <TableCell>
+                                                            <Box sx={{ display: 'flex', gap: 1 }}>
+                                                                <IconButton 
+                                                                    onClick={() => updateTeacherStats(user.numeroControl)}
+                                                                    sx={{ 
+                                                                        color: 'info.main',
+                                                                        '&:hover': { 
+                                                                            backgroundColor: 'rgba(2, 136, 209, 0.1)',
+                                                                            transform: 'scale(1.1)',
+                                                                        },
+                                                                        transition: 'all 0.2s ease',
+                                                                    }}
+                                                                >
+                                                                    <Refresh />
+                                                                </IconButton>
+                                                                <IconButton 
+                                                                    onClick={() => handleSelectStudent(user)}
+                                                                    sx={{ 
+                                                                        color: 'primary.main',
+                                                                        '&:hover': { 
+                                                                            backgroundColor: 'rgba(25, 118, 210, 0.1)',
+                                                                            transform: 'scale(1.1)',
+                                                                        },
+                                                                        transition: 'all 0.2s ease',
+                                                                    }}
+                                                                >
+                                                                    <Visibility />
+                                                                </IconButton>
+                                                                <IconButton 
+                                                                    onClick={() => handleOpenDialog(user)}
+                                                                    sx={{ 
+                                                                        color: 'warning.main',
+                                                                        '&:hover': { 
+                                                                            backgroundColor: 'rgba(237, 108, 2, 0.1)',
+                                                                            transform: 'scale(1.1)',
+                                                                        },
+                                                                        transition: 'all 0.2s ease',
+                                                                    }}
+                                                                >
+                                                                    <Edit />
+                                                                </IconButton>
+                                                                <IconButton 
+                                                                    onClick={() => handleDelete(user._id)} 
+                                                                    sx={{ 
+                                                                        color: 'error.main',
+                                                                        '&:hover': { 
+                                                                            backgroundColor: 'rgba(211, 47, 47, 0.1)',
+                                                                            transform: 'scale(1.1)',
+                                                                        },
+                                                                        transition: 'all 0.2s ease',
+                                                                    }}
+                                                                >
+                                                                    <Delete />
+                                                                </IconButton>
+                                                            </Box>
+                                                        </TableCell>
+                                                    </AnimatedTableRow>
+                                                </Fade>
+                                            );
+                                        })
                                     )}
                                 </TableBody>
                             </Table>
@@ -529,7 +713,7 @@ export default function Structure() {
                 </Zoom>
             </Box>
 
-            {/* Drawer de navegación (menú hamburguesa) - SIN CAMBIOS */}
+            {/* Drawer de navegación (menú hamburguesa) */}
             <Drawer
                 anchor="left"
                 open={mobileDrawerOpen}
@@ -573,8 +757,24 @@ export default function Structure() {
                         Nueva Asignación
                     </Button>
 
+                    <Button
+                        startIcon={<Assessment />}
+                        fullWidth
+                        variant="contained"
+                        sx={{
+                            justifyContent: 'flex-start',
+                            mb: 1.5,
+                            py: 1.2,
+                            background: 'linear-gradient(45deg, #2196f3 30%, #64b5f6 90%)',
+                            '&:hover': {
+                                background: 'linear-gradient(45deg, #1e88e5 30%, #2196f3 90%)',
+                            },
+                        }}
+                        onClick={handleOpenStadistics}
+                    >
+                        Estadísticas de Docentes
+                    </Button>
 
-                    
                     <Box sx={{ flexGrow: 1 }} />
                 </Box>
             </Drawer>
@@ -679,6 +879,12 @@ export default function Structure() {
                 open={asignationOpen}
                 onClose={handleCloseAsignation}
                 users={users}
+            />
+
+            {/* Diálogo de Estadísticas */}
+            <Stadistics
+                open={stadisticsOpen}
+                onClose={handleCloseStadistics}
             />
         </Box>
     );
