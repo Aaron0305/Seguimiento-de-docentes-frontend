@@ -1,12 +1,10 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { Box, Typography, Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, IconButton, Dialog, DialogTitle, DialogContent, DialogActions, TextField, CircularProgress, Avatar, Chip, Card, CardContent, Grid, Fade, Slide, Zoom, InputAdornment } from '@mui/material';
-import { Edit, Delete, Menu as MenuIcon, Close as CloseIcon, PersonAdd, Refresh, Search, FilterList, Visibility, MoreVert, Assignment, Assessment } from '@mui/icons-material';
+import { Box, Typography, Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, IconButton, Dialog, DialogTitle, DialogContent, DialogActions, TextField, CircularProgress, Avatar, Chip, Card, CardContent, Grid, Fade, Slide, Zoom } from '@mui/material';
+import { Edit, Delete, Menu as MenuIcon, Close as CloseIcon, PersonAdd, Refresh, FilterList, Visibility, MoreVert, Assignment, Assessment } from '@mui/icons-material';
 import Drawer from '@mui/material/Drawer';
 import { styled, keyframes } from '@mui/material/styles';
 import Asignation from './Asignation';
 import Stadistics from './Stadistics';
-import AuthDebugger from '../Debug/AuthDebugger';
-import StatsDebugger from '../Debug/StatsDebugger';
 
 // Animaciones personalizadas
 const pulse = keyframes`
@@ -101,8 +99,6 @@ export default function Structure() {
     const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
     const [fechaSeleccionada, setFechaSeleccionada] = useState(null);
     const [reporteDrawerOpen, setReporteDrawerOpen] = useState(false);
-    const [searchTerm, setSearchTerm] = useState('');
-    const [searchFocused, setSearchFocused] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
     const [asignationOpen, setAsignationOpen] = useState(false);
     const [stadisticsOpen, setStadisticsOpen] = useState(false);
@@ -166,31 +162,34 @@ export default function Structure() {
             });
 
             console.log('Respuesta de la API:', response.status);
+            const responseData = await response.text();
+            console.log('Respuesta completa:', responseData);
 
             if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}));
-                throw new Error(errorData.message || `Error ${response.status}: ${response.statusText}`);
+                throw new Error(`Error ${response.status}: ${responseData}`);
             }
 
-            const data = await response.json();
+            const data = JSON.parse(responseData);
             console.log('Datos recibidos:', data);
             
+            if (!Array.isArray(data)) {
+                throw new Error('Los datos recibidos no son un array');
+            }
+
             // Convertir array de estadísticas a objeto para fácil acceso
             const statsMap = {};
-            if (Array.isArray(data)) {
-                data.forEach(stat => {
-                    if (stat && stat.teacherId) {
-                        statsMap[stat.teacherId] = {
-                            teacherName: stat.teacherName,
-                            email: stat.email,
-                            total: stat.total || 0,
-                            completed: stat.completed || 0,
-                            pending: stat.pending || 0,
-                            overdue: stat.overdue || 0
-                        };
-                    }
-                });
-            }
+            data.forEach(stat => {
+                if (stat && stat.teacherId) {
+                    statsMap[stat.teacherId] = {
+                        teacherName: stat.teacherName,
+                        email: stat.email,
+                        total: stat.total || 0,
+                        completed: stat.completed || 0,
+                        pending: stat.pending || 0,
+                        overdue: stat.overdue || 0
+                    };
+                }
+            });
             
             console.log('StatsMap procesado:', statsMap);
             setTeacherStats(statsMap);
@@ -230,35 +229,20 @@ export default function Structure() {
     // Cargar usuarios y estadísticas junto con los usuarios
     useEffect(() => {
         const loadData = async () => {
-            await Promise.all([
-                fetchUsers(),
-                fetchTeacherStats()
-            ]);
+            try {
+                await fetchUsers();
+                await fetchTeacherStats();
+            } catch (error) {
+                console.error('Error cargando datos:', error);
+            }
         };
         loadData();
     }, [fetchUsers, fetchTeacherStats]);
 
     // Función de búsqueda mejorada
     const filteredUsers = useMemo(() => {
-        if (!searchTerm.trim()) return users;
-        
-        const searchTerms = searchTerm.toLowerCase().trim().split(/\s+/);
-        
-        return users.filter(user => {
-            const searchableFields = [
-                user.nombreCompleto,
-                user.numeroControl,
-                user.email,
-                user.carrera,
-                user.semestre,
-                user.grupo
-            ].map(field => String(field || '').toLowerCase());
-            
-            return searchTerms.every(term =>
-                searchableFields.some(field => field.includes(term))
-            );
-        });
-    }, [users, searchTerm]);
+        return users;
+    }, [users]);
 
     // Memoizar los detalles del estudiante
     const getStudentDetails = useMemo(() => (session) => ({
@@ -350,57 +334,17 @@ export default function Structure() {
         setStadisticsOpen(false);
     }, []);
 
-    // Componente de búsqueda mejorado
-    const SearchBox = () => (
-        <Box sx={{ mb: 3, mt: 2 }}>
-            <TextField
-                fullWidth
-                placeholder="Buscar por nombre, número de control, email o carrera..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                onFocus={() => setSearchFocused(true)}
-                onBlur={() => setSearchFocused(false)}
-                InputProps={{
-                    startAdornment: (
-                        <InputAdornment position="start">
-                            <Search color={searchFocused ? "primary" : "action"} />
-                        </InputAdornment>
-                    ),
-                    endAdornment: searchTerm && (
-                        <InputAdornment position="end">
-                            <IconButton size="small" onClick={() => setSearchTerm('')}>
-                                <CloseIcon />
-                            </IconButton>
-                        </InputAdornment>
-                    ),
-                    sx: {
-                        borderRadius: 2,
-                        transition: 'all 0.3s ease',
-                        '&:hover': {
-                            backgroundColor: 'rgba(0, 0, 0, 0.02)',
-                        },
-                        ...(searchFocused && {
-                            boxShadow: '0 0 0 2px rgba(25, 118, 210, 0.2)',
-                        }),
-                    }
-                }}
-            />
-            {searchTerm && (
-                <Typography variant="caption" sx={{ mt: 1, display: 'block', color: 'text.secondary' }}>
-                    {filteredUsers.length} resultado{filteredUsers.length !== 1 ? 's' : ''} encontrado{filteredUsers.length !== 1 ? 's' : ''}
-                </Typography>
-            )}
-        </Box>
-    );
-
     // Renderizar las estadísticas en la tabla
     const renderStats = useCallback((user) => {
+        console.log('Renderizando estadísticas para usuario:', user.numeroControl);
+        console.log('Stats disponibles:', teacherStats);
         const stats = teacherStats[user.numeroControl] || {
             total: 0,
             completed: 0,
             pending: 0,
             overdue: 0
         };
+        console.log('Stats para este usuario:', stats);
 
         return (
             <>
@@ -442,12 +386,6 @@ export default function Structure() {
 
     return (
         <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', bgcolor: '#f8fafc' }}>
-            {/* Debugger de autenticación */}
-            <AuthDebugger />
-            
-            {/* Debugger de estadísticas */}
-            <StatsDebugger />
-
             {/* Contenido principal */}
             <Box sx={{ 
                 flex: 1, 
@@ -535,8 +473,6 @@ export default function Structure() {
                     </HeaderBox>
                 </Fade>
 
-                <SearchBox />
-
                 {/* Tabla de usuarios */}
                 <Zoom in={true} timeout={1000}>
                     <StyledCard sx={{
@@ -597,7 +533,8 @@ export default function Structure() {
                                         <TableRow>
                                             <TableCell colSpan={10} align="center" sx={{ py: 8 }}>
                                                 <Typography variant="h6" color="text.secondary">
-                                                    {searchTerm ? '🔍 No se encontraron usuarios' : '👥 No hay usuarios registrados'}
+                                                    {/* searchTerm ? '🔍 No se encontraron usuarios' : '👥 No hay usuarios registrados' */}
+                                                    No hay usuarios registrados
                                                 </Typography>
                                             </TableCell>
                                         </TableRow>
@@ -756,25 +693,6 @@ export default function Structure() {
                     >
                         Nueva Asignación
                     </Button>
-
-                    <Button
-                        startIcon={<Assessment />}
-                        fullWidth
-                        variant="contained"
-                        sx={{
-                            justifyContent: 'flex-start',
-                            mb: 1.5,
-                            py: 1.2,
-                            background: 'linear-gradient(45deg, #2196f3 30%, #64b5f6 90%)',
-                            '&:hover': {
-                                background: 'linear-gradient(45deg, #1e88e5 30%, #2196f3 90%)',
-                            },
-                        }}
-                        onClick={handleOpenStadistics}
-                    >
-                        Estadísticas de Docentes
-                    </Button>
-
                     <Box sx={{ flexGrow: 1 }} />
                 </Box>
             </Drawer>
