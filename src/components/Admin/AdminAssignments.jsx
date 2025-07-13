@@ -119,6 +119,8 @@ const AdminAssignments = ({ open, onClose }) => {
             setLoading(true);
             setError('');
             
+            console.log('🔍 Loading assignments with status filter:', statusFilter);
+            
             const params = {
                 status: statusFilter,
                 search: searchTerm,
@@ -128,11 +130,16 @@ const AdminAssignments = ({ open, onClose }) => {
                 ...(teacherFilter !== 'all' && { teacherId: teacherFilter })
             };
 
+            console.log('📤 Sending API request with params:', params);
+
             const response = await getAdminAllAssignments(params);
             
             console.log('📥 Admin Assignments Response:', response);
             
             if (response.success) {
+                console.log('✅ Assignments received:', response.data?.assignments?.length || 0);
+                console.log('✅ Teachers received:', response.data?.teachers?.length || 0);
+                
                 setAssignments(response.data?.assignments || []);
                 setPagination(response.data?.pagination || {});
                 setTotalPages(response.data?.pagination?.pages || 1);
@@ -293,33 +300,33 @@ const AdminAssignments = ({ open, onClose }) => {
 
             <DialogContent sx={{ p: 3 }}>
                 {/* Estadísticas generales */}
-                {stats && (
+                {stats && stats.overview && (
                     <Grid container spacing={2} sx={{ mb: 3 }}>
                         {[
                             { 
                                 icon: <AssignmentIcon sx={{ fontSize: 32 }} />, 
-                                value: stats.total, 
+                                value: stats.overview.total, 
                                 label: 'Total',
                                 color: 'primary',
                                 filterValue: 'all'
                             },
                             { 
                                 icon: <Schedule sx={{ fontSize: 32 }} />, 
-                                value: stats.pending, 
+                                value: stats.overview.pending, 
                                 label: 'Pendientes',
                                 color: 'warning',
                                 filterValue: 'pending'
                             },
                             { 
                                 icon: <CheckCircle sx={{ fontSize: 32 }} />, 
-                                value: stats.completed, 
+                                value: stats.overview.completed, 
                                 label: 'Completadas',
                                 color: 'success',
                                 filterValue: 'completed'
                             },
                             { 
                                 icon: <Warning sx={{ fontSize: 32 }} />, 
-                                value: stats.overdue, 
+                                value: stats.overview.overdue, 
                                 label: 'Vencidas',
                                 color: 'error',
                                 filterValue: 'overdue'
@@ -439,7 +446,7 @@ const AdminAssignments = ({ open, onClose }) => {
                                     <MenuItem value="all">Todos los docentes</MenuItem>
                                     {teachers.map((teacher) => (
                                         <MenuItem key={teacher._id} value={teacher._id}>
-                                            {teacher.name}
+                                            {`${teacher.nombre} ${teacher.apellidoPaterno} ${teacher.apellidoMaterno}`}
                                         </MenuItem>
                                     ))}
                                 </Select>
@@ -539,12 +546,57 @@ const AdminAssignments = ({ open, onClose }) => {
                                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                                                     <School sx={{ fontSize: 16, color: 'text.secondary' }} />
                                                     <Box>
-                                                        <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
-                                                            {assignment.teacherName || 'Sin asignar'}
-                                                        </Typography>
-                                                        <Typography variant="caption" color="text.secondary">
-                                                            {assignment.teacherEmail || 'Sin email'}
-                                                        </Typography>
+                                                        {(() => {
+                                                            // Debug logs
+                                                            console.log('🔍 TeacherFilter:', teacherFilter);
+                                                            console.log('🔍 Assignment assignedTo:', assignment.assignedTo);
+                                                            
+                                                            // Si hay un filtro de docente específico, mostrar solo ese docente
+                                                            if (teacherFilter !== 'all') {
+                                                                const selectedTeacher = assignment.assignedTo?.find(teacher => teacher._id === teacherFilter);
+                                                                console.log('🔍 Selected teacher found:', selectedTeacher);
+                                                                if (selectedTeacher) {
+                                                                    return (
+                                                                        <>
+                                                                            <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
+                                                                                {`${selectedTeacher.nombre} ${selectedTeacher.apellidoPaterno} ${selectedTeacher.apellidoMaterno}`}
+                                                                            </Typography>
+                                                                            <Typography variant="caption" color="text.secondary">
+                                                                                {selectedTeacher.email}
+                                                                            </Typography>
+                                                                        </>
+                                                                    );
+                                                                }
+                                                            }
+                                                            
+                                                            // Si no hay filtro específico, mostrar el primer docente o todos
+                                                            if (assignment.assignedTo && assignment.assignedTo.length > 0) {
+                                                                const firstTeacher = assignment.assignedTo[0];
+                                                                return (
+                                                                    <>
+                                                                        <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
+                                                                            {`${firstTeacher.nombre} ${firstTeacher.apellidoPaterno} ${firstTeacher.apellidoMaterno}`}
+                                                                            {assignment.assignedTo.length > 1 && ` +${assignment.assignedTo.length - 1} más`}
+                                                                        </Typography>
+                                                                        <Typography variant="caption" color="text.secondary">
+                                                                            {firstTeacher.email}
+                                                                        </Typography>
+                                                                    </>
+                                                                );
+                                                            }
+                                                            
+                                                            // Si no hay docentes asignados
+                                                            return (
+                                                                <>
+                                                                    <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
+                                                                        Sin asignar
+                                                                    </Typography>
+                                                                    <Typography variant="caption" color="text.secondary">
+                                                                        Sin email
+                                                                    </Typography>
+                                                                </>
+                                                            );
+                                                        })()}
                                                     </Box>
                                                 </Box>
                                             </TableCell>
@@ -699,10 +751,16 @@ const AdminAssignments = ({ open, onClose }) => {
                                         boxShadow: theme.shadows[1]
                                     }}>
                                         <Typography variant="body1" sx={{ mb: 1 }}>
-                                            <strong>Docente Asignado:</strong> {selectedAssignment.teacherName || 'Sin asignar'}
+                                            <strong>Docente Asignado:</strong> {selectedAssignment.assignedTo && selectedAssignment.assignedTo.length > 0 ? 
+                                                `${selectedAssignment.assignedTo[0].nombre} ${selectedAssignment.assignedTo[0].apellidoPaterno} ${selectedAssignment.assignedTo[0].apellidoMaterno}` :
+                                                'Sin asignar'
+                                            }
                                         </Typography>
                                         <Typography variant="body1">
-                                            <strong>Email:</strong> {selectedAssignment.teacherEmail || 'Sin email'}
+                                            <strong>Email:</strong> {selectedAssignment.assignedTo && selectedAssignment.assignedTo.length > 0 ?
+                                                selectedAssignment.assignedTo[0].email :
+                                                'Sin email'
+                                            }
                                         </Typography>
                                     </Box>
                                 </Grid>
