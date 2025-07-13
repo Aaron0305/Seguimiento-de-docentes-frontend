@@ -5,6 +5,7 @@ import Drawer from '@mui/material/Drawer';
 import { styled, keyframes } from '@mui/material/styles';
 import Asignation from './Asignation';
 import Stadistics from './Stadistics';
+import AdminAssignments from './AdminAssignments';
 
 // Animaciones personalizadas
 const pulse = keyframes`
@@ -102,6 +103,7 @@ export default function Structure() {
     const [refreshing, setRefreshing] = useState(false);
     const [asignationOpen, setAsignationOpen] = useState(false);
     const [stadisticsOpen, setStadisticsOpen] = useState(false);
+    const [adminAssignmentsOpen, setAdminAssignmentsOpen] = useState(false);
     const [teacherStats, setTeacherStats] = useState({});
     const [loadingStats, setLoadingStats] = useState(true);
     const [statsError, setStatsError] = useState(null);
@@ -332,6 +334,15 @@ export default function Structure() {
 
     const handleCloseStadistics = useCallback(() => {
         setStadisticsOpen(false);
+    }, []);
+
+    const handleOpenAdminAssignments = useCallback(() => {
+        setAdminAssignmentsOpen(true);
+        setMobileDrawerOpen(false);
+    }, []);
+
+    const handleCloseAdminAssignments = useCallback(() => {
+        setAdminAssignmentsOpen(false);
     }, []);
 
     // Renderizar las estadísticas en la tabla
@@ -693,6 +704,28 @@ export default function Structure() {
                     >
                         Nueva Asignación
                     </Button>
+
+                    {/* Gestión de Asignaciones */}
+                    <Typography variant="subtitle2" sx={{ mb: 1, mt: 2, fontWeight: 'bold', color: '#4fc3f7' }}>
+                        GESTIÓN DE ASIGNACIONES
+                    </Typography>
+                    <Button
+                        startIcon={<Assessment />}
+                        fullWidth
+                        variant="contained"
+                        sx={{
+                            justifyContent: 'flex-start',
+                            mb: 1.5,
+                            py: 1.2,
+                            background: 'linear-gradient(45deg, #2e7d32 30%, #4caf50 90%)',
+                            '&:hover': {
+                                background: 'linear-gradient(45deg, #1b5e20 30%, #2e7d32 90%)',
+                            },
+                        }}
+                        onClick={handleOpenAdminAssignments}
+                    >
+                        Administrar Asignaciones
+                    </Button>
                     <Box sx={{ flexGrow: 1 }} />
                 </Box>
             </Drawer>
@@ -803,6 +836,12 @@ export default function Structure() {
             <Stadistics
                 open={stadisticsOpen}
                 onClose={handleCloseStadistics}
+            />
+
+            {/* Diálogo de Administración de Asignaciones */}
+            <AdminAssignments
+                open={adminAssignmentsOpen}
+                onClose={handleCloseAdminAssignments}
             />
         </Box>
     );

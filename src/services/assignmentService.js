@@ -143,10 +143,123 @@ export const getAllTeachersStats = async () => {
     }
 };
 
+// ========== FUNCIONES PARA ADMINISTRADOR ==========
+
+// Obtener todas las asignaciones para administrador con filtros
+export const getAdminAllAssignments = async (params = {}) => {
+    try {
+        console.log('📤 getAdminAllAssignments - Parámetros enviados:', params);
+        
+        const queryParams = new URLSearchParams();
+        
+        if (params.status) queryParams.append('status', params.status);
+        if (params.search) queryParams.append('search', params.search);
+        if (params.sort) queryParams.append('sort', params.sort);
+        if (params.limit) queryParams.append('limit', params.limit);
+        if (params.page) queryParams.append('page', params.page);
+        if (params.teacherId) queryParams.append('teacherId', params.teacherId);
+        
+        const url = `${BASE_URL}/assignments/admin/all${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
+        
+        console.log('🔗 URL construida:', url);
+        console.log('🔑 Headers:', getAuthHeaders());
+        
+        const response = await axios.get(url, {
+            headers: getAuthHeaders()
+        });
+        
+        console.log('📥 Respuesta recibida:', {
+            success: response.data.success,
+            totalAsignaciones: response.data.data?.assignments?.length || 0,
+            paginacion: response.data.data?.pagination
+        });
+        
+        return response.data;
+    } catch (error) {
+        console.error('❌ Error obteniendo todas las asignaciones para admin:', error);
+        
+        if (error.response) {
+            const errorData = error.response.data;
+            console.error('❌ Error del servidor:', errorData);
+            throw {
+                response: {
+                    data: errorData
+                },
+                message: errorData.error || 'Error del servidor'
+            };
+        } else if (error.request) {
+            console.error('❌ No hay respuesta del servidor');
+            throw {
+                message: 'No se pudo conectar con el servidor'
+            };
+        } else {
+            console.error('❌ Error al configurar la petición:', error.message);
+            throw {
+                message: error.message || 'Error desconocido'
+            };
+        }
+    }
+};
+
+// Marcar asignación como completada desde admin
+export const markAssignmentCompletedByAdmin = async (assignmentId) => {
+    try {
+        console.log('📤 Admin marcando asignación como completada:', assignmentId);
+        
+        const response = await axios.patch(`${BASE_URL}/assignments/admin/${assignmentId}/complete`, {}, {
+            headers: getAuthHeaders()
+        });
+        
+        console.log('📥 Respuesta recibida:', response.data);
+        return response.data;
+    } catch (error) {
+        console.error('❌ Error en markAssignmentCompletedByAdmin:', error);
+        
+        if (error.response) {
+            const errorData = error.response.data;
+            console.error('❌ Error del servidor:', errorData);
+            throw {
+                response: {
+                    data: errorData
+                },
+                message: errorData.error || 'Error del servidor'
+            };
+        } else if (error.request) {
+            console.error('❌ No hay respuesta del servidor');
+            throw {
+                message: 'No se pudo conectar con el servidor'
+            };
+        } else {
+            console.error('❌ Error al configurar la petición:', error.message);
+            throw {
+                message: error.message || 'Error desconocido'
+            };
+        }
+    }
+};
+
+// Obtener estadísticas de asignaciones para administrador
+export const getAdminAssignmentStats = async () => {
+    try {
+        const response = await axios.get(`${BASE_URL}/assignments/admin/stats`, {
+            headers: getAuthHeaders()
+        });
+        return response.data;
+    } catch (error) {
+        console.error('Error obteniendo estadísticas de asignaciones para admin:', error);
+        throw error;
+    }
+};
+
 export default {
     getTeacherAssignmentStats,
     getTeacherAssignments,
     markAssignmentCompleted,
     getMyAssignments,
-    getAssignmentById
+    getAssignmentById,
+    getAllTeachersStats,
+    // Funciones para administrador
+    getAdminAllAssignments,
+    markAssignmentCompletedByAdmin,
+    getAdminAssignmentStats
 };
