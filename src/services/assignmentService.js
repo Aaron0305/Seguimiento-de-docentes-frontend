@@ -251,6 +251,43 @@ export const getAdminAssignmentStats = async () => {
     }
 };
 
+// Actualizar asignación desde admin
+export const updateAssignmentByAdmin = async (assignmentId, updateData) => {
+    try {
+        console.log('📤 Admin actualizando asignación:', assignmentId, updateData);
+        
+        const response = await axios.put(`${BASE_URL}/assignments/admin/${assignmentId}`, updateData, {
+            headers: getAuthHeaders()
+        });
+        
+        console.log('📥 Respuesta recibida:', response.data);
+        return response.data;
+    } catch (error) {
+        console.error('❌ Error en updateAssignmentByAdmin:', error);
+        
+        if (error.response) {
+            const errorData = error.response.data;
+            console.error('❌ Error del servidor:', errorData);
+            throw {
+                response: {
+                    data: errorData
+                },
+                message: errorData.error || 'Error del servidor'
+            };
+        } else if (error.request) {
+            console.error('❌ No hay respuesta del servidor');
+            throw {
+                message: 'No se pudo conectar con el servidor'
+            };
+        } else {
+            console.error('❌ Error al configurar la petición:', error.message);
+            throw {
+                message: error.message || 'Error desconocido'
+            };
+        }
+    }
+};
+
 export default {
     getTeacherAssignmentStats,
     getTeacherAssignments,
@@ -261,5 +298,6 @@ export default {
     // Funciones para administrador
     getAdminAllAssignments,
     markAssignmentCompletedByAdmin,
-    getAdminAssignmentStats
+    getAdminAssignmentStats,
+    updateAssignmentByAdmin
 };

@@ -46,15 +46,18 @@ import {
     FileDownload,
     Person,
     School,
-    AdminPanelSettings
+    AdminPanelSettings,
+    Edit as EditIcon
 } from '@mui/icons-material';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@mui/material/styles';
 import { 
     getAdminAllAssignments, 
     markAssignmentCompletedByAdmin, 
-    getAdminAssignmentStats 
+    getAdminAssignmentStats,
+    updateAssignmentByAdmin
 } from '../../services/assignmentService';
+import EditAssignment from './EditAssignment';
 
 // Custom animated components
 const AnimatedCard = motion(Card);
@@ -70,7 +73,6 @@ const AdminAssignments = ({ open, onClose }) => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [teachers, setTeachers] = useState([]);
-    const [pagination, setPagination] = useState({});
     
     // Estados para filtros
     const [statusFilter, setStatusFilter] = useState('all');
@@ -85,6 +87,7 @@ const AdminAssignments = ({ open, onClose }) => {
     // Estados para diálogos
     const [selectedAssignment, setSelectedAssignment] = useState(null);
     const [showDetailDialog, setShowDetailDialog] = useState(false);
+    const [showEditDialog, setShowEditDialog] = useState(false);
     const [actionLoading, setActionLoading] = useState(false);
     const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -141,7 +144,6 @@ const AdminAssignments = ({ open, onClose }) => {
                 console.log('✅ Teachers received:', response.data?.teachers?.length || 0);
                 
                 setAssignments(response.data?.assignments || []);
-                setPagination(response.data?.pagination || {});
                 setTotalPages(response.data?.pagination?.pages || 1);
                 setTeachers(response.data?.teachers || []);
             } else {
@@ -179,6 +181,43 @@ const AdminAssignments = ({ open, onClose }) => {
         } catch (error) {
             console.error('Error completing assignment:', error);
             const errorMessage = error.response?.data?.error || error.message || 'Error marcando como completado';
+            setError(errorMessage);
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
+    const handleEditAssignment = (assignment) => {
+        setSelectedAssignment(assignment);
+        setShowEditDialog(true);
+    };
+
+    const handleSaveAssignment = async (updatedData) => {
+        try {
+            setActionLoading(true);
+            setError('');
+            
+            const response = await updateAssignmentByAdmin(updatedData._id, updatedData);
+            
+            if (response.success) {
+                await loadAssignments();
+                await loadStats();
+                setShowEditDialog(false);
+                setSelectedAssignment(null);
+                
+                // Mostrar mensaje específico según el tipo de operación
+                if (response.type === 'specific_assignment_created') {
+                    // Podríamos mostrar una notificación especial aquí
+                    console.log('✅ Asignación específica creada para el docente seleccionado');
+                } else {
+                    console.log('✅ Asignación actualizada para todos los docentes');
+                }
+            } else {
+                throw new Error(response.error || 'Error desconocido');
+            }
+        } catch (error) {
+            console.error('Error updating assignment:', error);
+            const errorMessage = error.response?.data?.error || error.message || 'Error actualizando asignación';
             setError(errorMessage);
         } finally {
             setActionLoading(false);
@@ -645,6 +684,15 @@ const AdminAssignments = ({ open, onClose }) => {
                                                             </IconButton>
                                                         </Tooltip>
                                                     )}
+                                                    <Tooltip title="Editar Asignación">
+                                                        <IconButton
+                                                            size="small"
+                                                            onClick={() => handleEditAssignment(assignment)}
+                                                            color="info"
+                                                        >
+                                                            <EditIcon />
+                                                        </IconButton>
+                                                    </Tooltip>
                                                 </Box>
                                             </TableCell>
                                         </TableRow>
@@ -858,6 +906,67 @@ const AdminAssignments = ({ open, onClose }) => {
                     </>
                 )}
             </Dialog>
+
+            {/* Diálogo de edición de asignación */}
+            <Dialog
+                open={showEditDialog}
+                onClose={() => setShowEditDialog(false)}
+                maxWidth="md"
+                fullWidth
+                PaperProps={{
+                    sx: {
+                        borderRadius: 3,
+                        background: `linear-gradient(to bottom, ${theme.palette.background.paper}, ${theme.palette.grey[50]})`
+                    }
+                }}
+            >
+                {selectedAssignment && (
+                    <>
+                        <DialogTitle sx={{ 
+                            py: 2,
+                            px: 3,
+                            background: `linear-gradient(to right, ${theme.palette.primary.dark}, ${theme.palette.primary.main})`,
+                            color: 'white',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center'
+                        }}>
+                            <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
+                                Editar Asignación
+                            </Typography>
+                            <IconButton 
+                                onClick={() => setShowEditDialog(false)}
+                                sx={{ color: 'white' }}
+                            >
+                                <Close />
+                            </IconButton>
+                        </DialogTitle>
+                        <DialogContent sx={{ p: 3 }}>
+                            <Box mb={2}>
+                                <Chip
+                                    label={getStatusLabel(selectedAssignment.status, selectedAssignment.dueDate, selectedAssignment.closeDate)}
+                                    color={getStatusColor(selectedAssignment.status, selectedAssignment.dueDate, selectedAssignment.closeDate)}
+                                    sx={{ 
+                                        fontWeight: 'bold',
+                                        textTransform: 'uppercase',
+                                        letterSpacing: 1
+                                    }}
+                                />
+                            </Box>
+                        </DialogContent>
+                    </>
+                )}
+            </Dialog>
+
+            {/* Diálogo de edición de asignación */}
+            <EditAssignment 
+                open={showEditDialog}
+                onClose={() => setShowEditDialog(false)}
+                assignment={selectedAssignment}
+                onSave={handleSaveAssignment}
+                teachers={teachers}
+                loading={actionLoading}
+            />
         </Dialog>
     );
 };
