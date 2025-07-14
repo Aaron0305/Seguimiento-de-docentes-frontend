@@ -58,6 +58,7 @@ import {
     updateAssignmentByAdmin
 } from '../../services/assignmentService';
 import EditAssignment from './EditAssignment';
+import ScheduledAssignments from './ScheduledAssignmentsEnhanced';
 
 // Custom animated components
 const AnimatedCard = motion(Card);
@@ -88,6 +89,7 @@ const AdminAssignments = ({ open, onClose }) => {
     const [selectedAssignment, setSelectedAssignment] = useState(null);
     const [showDetailDialog, setShowDetailDialog] = useState(false);
     const [showEditDialog, setShowEditDialog] = useState(false);
+    const [showScheduledDialog, setShowScheduledDialog] = useState(false);
     const [actionLoading, setActionLoading] = useState(false);
     const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -328,6 +330,15 @@ const AdminAssignments = ({ open, onClose }) => {
                     <Typography variant="h5" sx={{ fontWeight: 'bold' }}>
                         Gestión de Asignaciones
                     </Typography>
+                    <Button
+                        variant="contained"
+                        color="secondary"
+                        startIcon={<Schedule />}
+                        onClick={() => setShowScheduledDialog(true)}
+                        sx={{ ml: 2 }}
+                    >
+                        Programadas
+                    </Button>
                 </Box>
                 <IconButton 
                     onClick={onClose}
@@ -966,6 +977,13 @@ const AdminAssignments = ({ open, onClose }) => {
                 onSave={handleSaveAssignment}
                 teachers={teachers}
                 loading={actionLoading}
+            />
+
+            {/* Diálogo de asignaciones programadas */}
+            <ScheduledAssignments
+                open={showScheduledDialog}
+                onClose={() => setShowScheduledDialog(false)}
+                teachers={teachers}
             />
         </Dialog>
     );

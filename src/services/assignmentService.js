@@ -288,6 +288,164 @@ export const updateAssignmentByAdmin = async (assignmentId, updateData) => {
     }
 };
 
+// Programar una nueva asignación
+export const scheduleAssignment = async (assignmentData) => {
+    try {
+        console.log('📤 Programando nueva asignación:', assignmentData);
+        
+        const response = await axios.post(`${BASE_URL}/assignments/admin/schedule`, assignmentData, {
+            headers: getAuthHeaders()
+        });
+        
+        console.log('📥 Respuesta de asignación programada:', response.data);
+        return response.data;
+    } catch (error) {
+        console.error('❌ Error en scheduleAssignment:', error);
+        
+        if (error.response) {
+            const errorData = error.response.data;
+            console.error('❌ Error del servidor:', errorData);
+            throw {
+                response: {
+                    data: errorData
+                },
+                message: errorData.error || 'Error del servidor'
+            };
+        } else if (error.request) {
+            console.error('❌ No hay respuesta del servidor');
+            throw {
+                message: 'No se pudo conectar con el servidor'
+            };
+        } else {
+            console.error('❌ Error al configurar la petición:', error.message);
+            throw {
+                message: error.message || 'Error desconocido'
+            };
+        }
+    }
+};
+
+// Obtener asignaciones programadas
+export const getScheduledAssignments = async (params = {}) => {
+    try {
+        console.log('📤 Obteniendo asignaciones programadas:', params);
+        
+        const queryParams = new URLSearchParams();
+        
+        if (params.status) queryParams.append('status', params.status);
+        if (params.search) queryParams.append('search', params.search);
+        if (params.sort) queryParams.append('sort', params.sort);
+        if (params.limit) queryParams.append('limit', params.limit);
+        if (params.page) queryParams.append('page', params.page);
+        
+        const url = `${BASE_URL}/assignments/admin/scheduled${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
+        
+        const response = await axios.get(url, {
+            headers: getAuthHeaders()
+        });
+        
+        console.log('📥 Asignaciones programadas recibidas:', response.data);
+        return response.data;
+    } catch (error) {
+        console.error('❌ Error en getScheduledAssignments:', error);
+        
+        if (error.response) {
+            const errorData = error.response.data;
+            console.error('❌ Error del servidor:', errorData);
+            throw {
+                response: {
+                    data: errorData
+                },
+                message: errorData.error || 'Error del servidor'
+            };
+        } else if (error.request) {
+            console.error('❌ No hay respuesta del servidor');
+            throw {
+                message: 'No se pudo conectar con el servidor'
+            };
+        } else {
+            console.error('❌ Error al configurar la petición:', error.message);
+            throw {
+                message: error.message || 'Error desconocido'
+            };
+        }
+    }
+};
+
+// Cancelar una asignación programada
+export const cancelScheduledAssignment = async (assignmentId) => {
+    try {
+        console.log('📤 Cancelando asignación programada:', assignmentId);
+        
+        const response = await axios.delete(`${BASE_URL}/assignments/admin/scheduled/${assignmentId}`, {
+            headers: getAuthHeaders()
+        });
+        
+        console.log('📥 Asignación programada cancelada:', response.data);
+        return response.data;
+    } catch (error) {
+        console.error('❌ Error en cancelScheduledAssignment:', error);
+        
+        if (error.response) {
+            const errorData = error.response.data;
+            console.error('❌ Error del servidor:', errorData);
+            throw {
+                response: {
+                    data: errorData
+                },
+                message: errorData.error || 'Error del servidor'
+            };
+        } else if (error.request) {
+            console.error('❌ No hay respuesta del servidor');
+            throw {
+                message: 'No se pudo conectar con el servidor'
+            };
+        } else {
+            console.error('❌ Error al configurar la petición:', error.message);
+            throw {
+                message: error.message || 'Error desconocido'
+            };
+        }
+    }
+};
+
+// Editar una asignación programada
+export const updateScheduledAssignment = async (assignmentId, updateData) => {
+    try {
+        console.log('📤 Actualizando asignación programada:', assignmentId, updateData);
+        
+        const response = await axios.put(`${BASE_URL}/assignments/admin/scheduled/${assignmentId}`, updateData, {
+            headers: getAuthHeaders()
+        });
+        
+        console.log('📥 Asignación programada actualizada:', response.data);
+        return response.data;
+    } catch (error) {
+        console.error('❌ Error en updateScheduledAssignment:', error);
+        
+        if (error.response) {
+            const errorData = error.response.data;
+            console.error('❌ Error del servidor:', errorData);
+            throw {
+                response: {
+                    data: errorData
+                },
+                message: errorData.error || 'Error del servidor'
+            };
+        } else if (error.request) {
+            console.error('❌ No hay respuesta del servidor');
+            throw {
+                message: 'No se pudo conectar con el servidor'
+            };
+        } else {
+            console.error('❌ Error al configurar la petición:', error.message);
+            throw {
+                message: error.message || 'Error desconocido'
+            };
+        }
+    }
+};
+
 export default {
     getTeacherAssignmentStats,
     getTeacherAssignments,
@@ -299,5 +457,10 @@ export default {
     getAdminAllAssignments,
     markAssignmentCompletedByAdmin,
     getAdminAssignmentStats,
-    updateAssignmentByAdmin
+    updateAssignmentByAdmin,
+    // Funciones para asignaciones programadas
+    scheduleAssignment,
+    getScheduledAssignments,
+    cancelScheduledAssignment,
+    updateScheduledAssignment
 };
