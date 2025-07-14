@@ -935,103 +935,33 @@ const ScheduledAssignments = ({ open, onClose, teachers = [] }) => {
                 fullWidth
                 PaperProps={{
                     sx: {
-                        borderRadius: 6,
-                        background: `linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(248,250,252,0.95) 100%)`,
-                        backdropFilter: 'blur(20px)',
-                        border: '1px solid rgba(255,255,255,0.2)',
-                        boxShadow: `
-                            0 32px 64px rgba(59, 130, 246, 0.15),
-                            0 16px 32px rgba(59, 130, 246, 0.1),
-                            0 8px 16px rgba(0, 0, 0, 0.1)
-                        `,
-                        overflow: 'hidden'
+                        borderRadius: 4,
+                        background: `linear-gradient(135deg, ${theme.palette.background.paper} 0%, ${theme.palette.grey[50]} 100%)`,
+                        boxShadow: '0 20px 40px rgba(0,0,0,0.15)'
                     }
                 }}
             >
                 <DialogTitle sx={{ 
-                    py: 4,
-                    px: 5,
-                    background: `linear-gradient(135deg, #1e40af 0%, #3b82f6 50%, #06b6d4 100%)`,
+                    py: 3,
+                    px: 4,
+                    background: `linear-gradient(135deg, ${theme.palette.success.dark} 0%, ${theme.palette.success.main} 100%)`,
                     color: 'white',
                     display: 'flex',
                     justifyContent: 'space-between',
-                    alignItems: 'center',
-                    position: 'relative',
-                    '&::before': {
-                        content: '""',
-                        position: 'absolute',
-                        top: 0,
-                        left: 0,
-                        right: 0,
-                        bottom: 0,
-                        background: `
-                            radial-gradient(circle at 20% 50%, rgba(255,255,255,0.1) 0%, transparent 50%),
-                            radial-gradient(circle at 80% 20%, rgba(255,255,255,0.1) 0%, transparent 50%)
-                        `,
-                        pointerEvents: 'none'
-                    }
+                    alignItems: 'center'
                 }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, zIndex: 1 }}>
-                        <Box
-                            sx={{
-                                width: 48,
-                                height: 48,
-                                borderRadius: '12px',
-                                background: 'rgba(255,255,255,0.2)',
-                                backdropFilter: 'blur(10px)',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                border: '1px solid rgba(255,255,255,0.3)'
-                            }}
-                        >
-                            <Add sx={{ fontSize: 24, color: 'white' }} />
-                        </Box>
-                        <Typography variant="h5" sx={{ 
-                            fontWeight: 700,
-                            fontSize: '1.5rem',
-                            letterSpacing: '-0.025em'
-                        }}>
-                            ✨ Nueva Asignación Programada
-                        </Typography>
-                    </Box>
+                    <Typography variant="h5" sx={{ fontWeight: 'bold' }}>
+                        ✨ Nueva Asignación Programada
+                    </Typography>
                     <IconButton 
                         onClick={() => setShowCreateDialog(false)}
-                        sx={{ 
-                            color: 'rgba(255,255,255,0.9)',
-                            background: 'rgba(255,255,255,0.1)',
-                            backdropFilter: 'blur(10px)',
-                            border: '1px solid rgba(255,255,255,0.2)',
-                            zIndex: 1,
-                            '&:hover': {
-                                background: 'rgba(255,255,255,0.2)',
-                                transform: 'scale(1.05)'
-                            },
-                            transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)'
-                        }}
+                        sx={{ color: 'white' }}
                     >
                         <Close />
                     </IconButton>
                 </DialogTitle>
-                <DialogContent sx={{ 
-                    p: 5,
-                    background: 'rgba(255,255,255,0.7)',
-                    backdropFilter: 'blur(10px)'
-                }}>
-                    <Box sx={{ mb: 4 }}>
-                        <Typography 
-                            variant="body1" 
-                            sx={{ 
-                                color: 'rgba(71, 85, 105, 0.8)',
-                                fontSize: '1rem',
-                                lineHeight: 1.6
-                            }}
-                        >
-                            Gestión avanzada de tareas programadas con configuración temporal precisa
-                        </Typography>
-                    </Box>
-                    
-                    <Grid container spacing={4}>
+                <DialogContent sx={{ p: 4 }}>
+                    <Grid container spacing={3}>
                         <Grid item xs={12}>
                             <TextField
                                 fullWidth
@@ -1040,25 +970,7 @@ const ScheduledAssignments = ({ open, onClose, teachers = [] }) => {
                                 onChange={(e) => handleInputChange('title', e.target.value)}
                                 variant="outlined"
                                 required
-                                sx={{ 
-                                    '& .MuiOutlinedInput-root': {
-                                        borderRadius: 3,
-                                        background: 'rgba(255,255,255,0.9)',
-                                        backdropFilter: 'blur(10px)',
-                                        border: '1px solid rgba(59, 130, 246, 0.2)',
-                                        '&:hover': {
-                                            border: '1px solid rgba(59, 130, 246, 0.4)',
-                                        },
-                                        '&.Mui-focused': {
-                                            border: '2px solid #3b82f6',
-                                            boxShadow: '0 0 0 3px rgba(59, 130, 246, 0.1)'
-                                        }
-                                    },
-                                    '& .MuiInputLabel-root': {
-                                        color: '#475569',
-                                        fontWeight: 500
-                                    }
-                                }}
+                                sx={{ mb: 2 }}
                             />
                         </Grid>
                         <Grid item xs={12}>
@@ -1071,25 +983,7 @@ const ScheduledAssignments = ({ open, onClose, teachers = [] }) => {
                                 multiline
                                 rows={4}
                                 required
-                                sx={{ 
-                                    '& .MuiOutlinedInput-root': {
-                                        borderRadius: 3,
-                                        background: 'rgba(255,255,255,0.9)',
-                                        backdropFilter: 'blur(10px)',
-                                        border: '1px solid rgba(59, 130, 246, 0.2)',
-                                        '&:hover': {
-                                            border: '1px solid rgba(59, 130, 246, 0.4)',
-                                        },
-                                        '&.Mui-focused': {
-                                            border: '2px solid #3b82f6',
-                                            boxShadow: '0 0 0 3px rgba(59, 130, 246, 0.1)'
-                                        }
-                                    },
-                                    '& .MuiInputLabel-root': {
-                                        color: '#475569',
-                                        fontWeight: 500
-                                    }
-                                }}
+                                sx={{ mb: 2 }}
                             />
                         </Grid>
                         <Grid item xs={12} md={6}>
@@ -1101,25 +995,7 @@ const ScheduledAssignments = ({ open, onClose, teachers = [] }) => {
                                 onChange={(e) => handleInputChange('publishDate', e.target.value)}
                                 InputLabelProps={{ shrink: true }}
                                 required
-                                sx={{ 
-                                    '& .MuiOutlinedInput-root': {
-                                        borderRadius: 3,
-                                        background: 'rgba(255,255,255,0.9)',
-                                        backdropFilter: 'blur(10px)',
-                                        border: '1px solid rgba(59, 130, 246, 0.2)',
-                                        '&:hover': {
-                                            border: '1px solid rgba(59, 130, 246, 0.4)',
-                                        },
-                                        '&.Mui-focused': {
-                                            border: '2px solid #3b82f6',
-                                            boxShadow: '0 0 0 3px rgba(59, 130, 246, 0.1)'
-                                        }
-                                    },
-                                    '& .MuiInputLabel-root': {
-                                        color: '#475569',
-                                        fontWeight: 500
-                                    }
-                                }}
+                                sx={{ mb: 2 }}
                             />
                         </Grid>
                         <Grid item xs={12} md={6}>
@@ -1130,25 +1006,7 @@ const ScheduledAssignments = ({ open, onClose, teachers = [] }) => {
                                 value={newAssignment.dueDate}
                                 onChange={(e) => handleInputChange('dueDate', e.target.value)}
                                 InputLabelProps={{ shrink: true }}
-                                sx={{ 
-                                    '& .MuiOutlinedInput-root': {
-                                        borderRadius: 3,
-                                        background: 'rgba(255,255,255,0.9)',
-                                        backdropFilter: 'blur(10px)',
-                                        border: '1px solid rgba(59, 130, 246, 0.2)',
-                                        '&:hover': {
-                                            border: '1px solid rgba(59, 130, 246, 0.4)',
-                                        },
-                                        '&.Mui-focused': {
-                                            border: '2px solid #3b82f6',
-                                            boxShadow: '0 0 0 3px rgba(59, 130, 246, 0.1)'
-                                        }
-                                    },
-                                    '& .MuiInputLabel-root': {
-                                        color: '#475569',
-                                        fontWeight: 500
-                                    }
-                                }}
+                                sx={{ mb: 2 }}
                             />
                         </Grid>
                         <Grid item xs={12} md={6}>
@@ -1159,47 +1017,11 @@ const ScheduledAssignments = ({ open, onClose, teachers = [] }) => {
                                 value={newAssignment.closeDate}
                                 onChange={(e) => handleInputChange('closeDate', e.target.value)}
                                 InputLabelProps={{ shrink: true }}
-                                sx={{ 
-                                    '& .MuiOutlinedInput-root': {
-                                        borderRadius: 3,
-                                        background: 'rgba(255,255,255,0.9)',
-                                        backdropFilter: 'blur(10px)',
-                                        border: '1px solid rgba(59, 130, 246, 0.2)',
-                                        '&:hover': {
-                                            border: '1px solid rgba(59, 130, 246, 0.4)',
-                                        },
-                                        '&.Mui-focused': {
-                                            border: '2px solid #3b82f6',
-                                            boxShadow: '0 0 0 3px rgba(59, 130, 246, 0.1)'
-                                        }
-                                    },
-                                    '& .MuiInputLabel-root': {
-                                        color: '#475569',
-                                        fontWeight: 500
-                                    }
-                                }}
+                                sx={{ mb: 2 }}
                             />
                         </Grid>
                         <Grid item xs={12} md={6}>
-                            <FormControl fullWidth sx={{ 
-                                '& .MuiOutlinedInput-root': {
-                                    borderRadius: 3,
-                                    background: 'rgba(255,255,255,0.9)',
-                                    backdropFilter: 'blur(10px)',
-                                    border: '1px solid rgba(59, 130, 246, 0.2)',
-                                    '&:hover': {
-                                        border: '1px solid rgba(59, 130, 246, 0.4)',
-                                    },
-                                    '&.Mui-focused': {
-                                        border: '2px solid #3b82f6',
-                                        boxShadow: '0 0 0 3px rgba(59, 130, 246, 0.1)'
-                                    }
-                                },
-                                '& .MuiInputLabel-root': {
-                                    color: '#475569',
-                                    fontWeight: 500
-                                }
-                            }}>
+                            <FormControl fullWidth sx={{ mb: 2 }}>
                                 <InputLabel>📊 Estado Inicial</InputLabel>
                                 <Select
                                     value={newAssignment.status}
@@ -1215,35 +1037,18 @@ const ScheduledAssignments = ({ open, onClose, teachers = [] }) => {
                     </Grid>
                 </DialogContent>
                 <DialogActions sx={{ 
-                    p: 4,
-                    background: 'rgba(248, 250, 252, 0.8)',
-                    backdropFilter: 'blur(10px)',
-                    borderTop: '1px solid rgba(59, 130, 246, 0.1)',
-                    gap: 3,
-                    justifyContent: 'space-between'
+                    p: 3,
+                    borderTop: `1px solid ${theme.palette.divider}`,
+                    gap: 2
                 }}>
                     <Button
                         onClick={() => setShowCreateDialog(false)}
                         variant="outlined"
                         startIcon={<Cancel />}
                         sx={{ 
-                            borderRadius: 3,
+                            borderRadius: 2,
                             textTransform: 'none',
-                            px: 4,
-                            py: 1.5,
-                            fontSize: '1rem',
-                            fontWeight: 600,
-                            border: '2px solid rgba(71, 85, 105, 0.2)',
-                            color: '#475569',
-                            background: 'rgba(255,255,255,0.8)',
-                            backdropFilter: 'blur(10px)',
-                            '&:hover': {
-                                border: '2px solid rgba(71, 85, 105, 0.3)',
-                                background: 'rgba(248, 250, 252, 0.9)',
-                                transform: 'translateY(-1px)',
-                                boxShadow: '0 4px 12px rgba(71, 85, 105, 0.15)'
-                            },
-                            transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)'
+                            px: 3
                         }}
                     >
                         ❌ Cancelar
@@ -1251,46 +1056,13 @@ const ScheduledAssignments = ({ open, onClose, teachers = [] }) => {
                     <Button
                         onClick={handleCreateAssignment}
                         variant="contained"
-                        startIcon={isCreating ? <CircularProgress size={18} color="inherit" /> : <Save />}
+                        startIcon={<Save />}
                         disabled={isCreating || !newAssignment.title || !newAssignment.description || !newAssignment.publishDate}
                         sx={{ 
-                            borderRadius: 3,
+                            borderRadius: 2,
                             textTransform: 'none',
-                            px: 4,
-                            py: 1.5,
-                            fontSize: '1rem',
-                            fontWeight: 600,
-                            background: `linear-gradient(135deg, #1e40af 0%, #3b82f6 50%, #06b6d4 100%)`,
-                            border: '1px solid rgba(255,255,255,0.2)',
-                            position: 'relative',
-                            overflow: 'hidden',
-                            '&::before': {
-                                content: '""',
-                                position: 'absolute',
-                                top: 0,
-                                left: '-100%',
-                                width: '100%',
-                                height: '100%',
-                                background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent)',
-                                transition: 'left 0.5s cubic-bezier(0.4, 0, 0.2, 1)'
-                            },
-                            '&:hover': {
-                                transform: 'translateY(-2px)',
-                                boxShadow: `
-                                    0 8px 25px rgba(59, 130, 246, 0.35),
-                                    0 4px 12px rgba(59, 130, 246, 0.2)
-                                `,
-                                '&::before': {
-                                    left: '100%'
-                                }
-                            },
-                            '&:disabled': {
-                                background: 'rgba(148, 163, 184, 0.5)',
-                                color: 'rgba(255,255,255,0.7)',
-                                transform: 'none',
-                                boxShadow: 'none'
-                            },
-                            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
+                            px: 3,
+                            background: `linear-gradient(135deg, ${theme.palette.success.main} 0%, ${theme.palette.success.dark} 100%)`
                         }}
                     >
                         {isCreating ? '⏳ Creando...' : '💾 Crear Asignación'}
